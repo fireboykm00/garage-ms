@@ -9,13 +9,6 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Wrench, Search, Plus, List, Columns3,
   Clock
 } from "lucide-react"
@@ -100,17 +93,6 @@ export function JobCardListPage() {
     }
     return data
   }, [filtered])
-
-  const handleQuickStatus = async (id: number, status: JobCardStatus) => {
-    try {
-      await jobCardService.updateStatus(id, status)
-      toast.success(`Status updated to ${statusConfig[status].label}`)
-      const res = await jobCardService.getAll()
-      setJobs(res.data)
-    } catch {
-      toast.error("Failed to update status")
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -249,39 +231,13 @@ export function JobCardListPage() {
             <Link key={job.id} to={`/jobs/${job.id}`}>
               <Card className="transition-colors hover:bg-accent/50 cursor-pointer">
                 <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <CardTitle className="text-base font-mono">{job.jobNumber}</CardTitle>
-                      <span className={`text-xs font-medium ${statusConfig[job.status].color}`}>
-                        {statusConfig[job.status].label}
-                      </span>
-                    </div>
-                    <div onClick={(e) => e.preventDefault()} className="shrink-0">
-                      {job.status === "COMPLETED" || job.status === "CANCELLED" ? (
-                        <span className={`text-xs font-semibold ${statusConfig[job.status].color}`}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <CardTitle className="text-base font-mono">{job.jobNumber}</CardTitle>
+                        <span className={`text-xs font-medium ${statusConfig[job.status].color}`}>
                           {statusConfig[job.status].label}
                         </span>
-                      ) : (
-                        <Select
-                          value={job.status}
-                          onValueChange={(v) => handleQuickStatus(job.id, v as JobCardStatus)}
-                        >
-                          <SelectTrigger className="h-7 w-32 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(job.status === "OPEN"
-                              ? ["IN_PROGRESS", "CANCELLED"]
-                              : ["COMPLETED", "CANCELLED"]
-                            ).map((s) => (
-                              <SelectItem key={s} value={s} className="text-xs">
-                                {statusConfig[s as JobCardStatus].label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
+                      </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pb-3">

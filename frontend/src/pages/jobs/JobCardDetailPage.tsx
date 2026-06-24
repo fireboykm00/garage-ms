@@ -219,7 +219,7 @@ export function JobCardDetailPage() {
     setRemovingPartId(jobCardPartId)
     try {
       await jobCardService.removePart(Number(id), jobCardPartId)
-      toast.success("Part removed from job card and returned to stock")
+      toast.success("Part removed from job card")
       setParts((prev) => prev.filter((p) => p.id !== jobCardPartId))
     } catch (err: unknown) {
       console.error("Remove part error:", err)
@@ -264,7 +264,7 @@ export function JobCardDetailPage() {
         if (existing) return prev.map((ep) => (ep.partId === p.partId ? p : ep))
         return [...prev, p]
       })
-      toast.success(`${p.quantity}x ${p.partName} added — stock deducted automatically`)
+      toast.success(`${p.quantity}x ${p.partName} added — will be consumed on completion`)
       setAddPartSelectedId(""); setAddPartQuantity(1); setAddPartSearch(""); setShowAddPartForm(false)
     } catch (err) {
       const { message } = normalizeError(err)
@@ -499,7 +499,7 @@ export function JobCardDetailPage() {
                                         <AlertDialogHeader>
                                           <AlertDialogTitle>Remove part?</AlertDialogTitle>
                                           <AlertDialogDescription>
-                                            {p.quantity}x {p.partName} ({p.partNumber}) will be returned to stock.
+                                            {p.quantity}x {p.partName} ({p.partNumber}) will be removed from the job card.
                                           </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>

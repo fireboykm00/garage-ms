@@ -155,10 +155,10 @@ public class JobCardService {
         jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.STATUS_CHANGED,
                 "Status changed from " + oldStatus + " to " + status, user.getFullName()));
 
-        if (status == JobCardStatus.CANCELLED && oldStatus != JobCardStatus.CANCELLED) {
-            restorePartsOnCancel(jobCard, user);
-        } else if (status == JobCardStatus.OPEN && oldStatus == JobCardStatus.CANCELLED) {
-            redeductPartsOnReopen(jobCard, user);
+        if (status == JobCardStatus.COMPLETED && (oldStatus == JobCardStatus.IN_PROGRESS || oldStatus == JobCardStatus.OPEN)) {
+            deductPartsOnComplete(jobCard, user);
+        } else if (status == JobCardStatus.OPEN && oldStatus == JobCardStatus.COMPLETED) {
+            restorePartsOnReopen(jobCard, user);
         }
 
         return JobCardResponse.fromEntity(jobCard);
@@ -170,26 +170,12 @@ public class JobCardService {
         }
     }
 
-    private void restorePartsOnCancel(JobCard jobCard, User user) {
-        List<JobCardPart> parts = jobCardPartRepository.findByJobCardId(jobCard.getId());
-        for (JobCardPart jcp : parts) {
-            Part part = jcp.getPart();
-            part.setCurrentQuantity(part.getCurrentQuantity() + jcp.getQuantity());
-            partRepository.save(part);
-
-            StockTransaction tx = new StockTransaction(part, TransactionType.IN, jcp.getQuantity(),
-                    "Returned from cancelled " + jobCard.getJobNumber(),
-                    TransactionSourceType.JOB_CARD, jobCard.getJobNumber(), user);
-            stockTransactionRepository.save(tx);
-        }
-    }
-
-    private void redeductPartsOnReopen(JobCard jobCard, User user) {
+    private void deductPartsOnComplete(JobCard jobCard, User user) {
         List<JobCardPart> parts = jobCardPartRepository.findByJobCardId(jobCard.getId());
         for (JobCardPart jcp : parts) {
             Part part = jcp.getPart();
             if (part.getCurrentQuantity() < jcp.getQuantity()) {
-                throw new BadRequestException("Insufficient stock to reopen " + jobCard.getJobNumber()
+                throw new BadRequestException("Insufficient stock to complete " + jobCard.getJobNumber()
                         + ". Part " + part.getPartNumber() + " has only " + part.getCurrentQuantity()
                         + ", needs " + jcp.getQuantity());
             }
@@ -197,7 +183,21 @@ public class JobCardService {
             partRepository.save(part);
 
             StockTransaction tx = new StockTransaction(part, TransactionType.OUT, jcp.getQuantity(),
-                    "Reallocated for reopened " + jobCard.getJobNumber(),
+                    "Consumed on " + jobCard.getJobNumber(),
+                    TransactionSourceType.JOB_CARD, jobCard.getJobNumber(), user);
+            stockTransactionRepository.save(tx);
+        }
+    }
+
+    private void restorePartsOnReopen(JobCard jobCard, User user) {
+        List<JobCardPart> parts = jobCardPartRepository.findByJobCardId(jobCard.getId());
+        for (JobCardPart jcp : parts) {
+            Part part = jcp.getPart();
+            part.setCurrentQuantity(part.getCurrentQuantity() + jcp.getQuantity());
+            partRepository.save(part);
+
+            StockTransaction tx = new StockTransaction(part, TransactionType.IN, jcp.getQuantity(),
+                    "Returned from reopened " + jobCard.getJobNumber(),
                     TransactionSourceType.JOB_CARD, jobCard.getJobNumber(), user);
             stockTransactionRepository.save(tx);
         }
@@ -210,18 +210,6 @@ public class JobCardService {
         validateActiveStatus(jobCard);
         Part part = partRepository.findById(request.getPartId())
                 .orElseThrow(() -> new ResourceNotFoundException("Part not found with id: " + request.getPartId()));
-
-        if (part.getCurrentQuantity() < request.getQuantity()) {
-            throw new BadRequestException("Insufficient stock for " + part.getPartNumber()
-                    + ". Available: " + part.getCurrentQuantity() + ", requested: " + request.getQuantity());
-        }
-
-        part.setCurrentQuantity(part.getCurrentQuantity() - request.getQuantity());
-        partRepository.save(part);
-
-        StockTransaction tx = new StockTransaction(part, TransactionType.OUT, request.getQuantity(),
-                "Used on " + jobCard.getJobNumber(), TransactionSourceType.JOB_CARD, jobCard.getJobNumber(), user);
-        stockTransactionRepository.save(tx);
 
         // UPSERT: find existing JobCardPart for this part on this job card, or create new with quantity 0
         JobCardPart jcp = jobCardPartRepository.findByJobCardIdAndPartId(jobCardId, request.getPartId())
@@ -245,12 +233,6 @@ public class JobCardService {
                 .orElseThrow(() -> new ResourceNotFoundException("Job card part not found with id: " + jobCardPartId));
 
         Part part = jcp.getPart();
-        part.setCurrentQuantity(part.getCurrentQuantity() + jcp.getQuantity());
-        partRepository.save(part);
-
-        StockTransaction tx = new StockTransaction(part, TransactionType.IN, jcp.getQuantity(),
-                "Removed from " + jobCard.getJobNumber(), TransactionSourceType.JOB_CARD, jobCard.getJobNumber(), user);
-        stockTransactionRepository.save(tx);
 
         jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.PART_REMOVED,
                 jcp.getQuantity() + "x " + part.getName() + " (" + part.getPartNumber() + ") removed", user.getFullName()));
