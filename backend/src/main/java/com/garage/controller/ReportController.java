@@ -1,5 +1,6 @@
 package com.garage.controller;
 
+import com.garage.dto.report.AggregatedStockOutReport;
 import com.garage.dto.report.RemainingStockResponse;
 import com.garage.dto.report.StockOutReportResponse;
 import com.garage.service.ReportService;
@@ -21,6 +22,11 @@ public class ReportController {
     @GetMapping("/stock-out")
     public ResponseEntity<List<StockOutReportResponse>> getStockOutReport() {
         return ResponseEntity.ok(reportService.getStockOutReport());
+    }
+
+    @GetMapping("/stock-out/aggregated")
+    public ResponseEntity<List<AggregatedStockOutReport>> getAggregatedStockOutReport() {
+        return ResponseEntity.ok(reportService.getAggregatedStockOutReport());
     }
 
     @GetMapping("/remaining-stock")

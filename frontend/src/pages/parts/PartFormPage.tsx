@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { partService } from "@/services/partService"
-import type { PartRequest } from "@/types"
+import { stockService } from "@/services/stockService"
+import type { PartRequest, Stock } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,25 +15,41 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
 
 export function PartFormPage() {
-  const { id } = useParams()
+  const { id, stockId } = useParams()
   const navigate = useNavigate()
   const isEdit = !!id
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [stocks, setStocks] = useState<Stock[]>([])
   const [form, setForm] = useState<PartRequest>({
     partNumber: "",
     ourPartNumber: "",
     name: "",
     model: "",
     manufacturer: "",
-    location: "",
-    warehouse: "",
     unit: "pcs",
     currentQuantity: 0,
     minimumQuantity: 0,
+    stockId: 0,
   })
 
   useDocumentTitle(isEdit ? "Edit Part" : "Add Part")
+
+  // Load stocks list
+  useEffect(() => {
+    stockService.getAll()
+      .then((res) => {
+        setStocks(res.data)
+        // Pre-select stock if coming from stock detail page
+        if (stockId && res.data.length > 0) {
+          const sid = Number(stockId)
+          if (res.data.some((s) => s.id === sid)) {
+            setForm((prev) => ({ ...prev, stockId: sid }))
+          }
+        }
+      })
+      .catch(() => toast.error("Failed to load stocks"))
+  }, [stockId])
 
   useEffect(() => {
     if (isEdit) {
@@ -46,11 +63,10 @@ export function PartFormPage() {
             name: p.name,
             model: p.model || "",
             manufacturer: p.manufacturer || "",
-            location: p.location || "",
-            warehouse: p.warehouse || "",
             unit: p.unit,
             currentQuantity: p.currentQuantity,
             minimumQuantity: p.minimumQuantity,
+            stockId: p.stockId,
           })
         })
         .catch(() => toast.error("Failed to load part"))
@@ -60,6 +76,7 @@ export function PartFormPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!form.stockId) { toast.error("Select a stock"); return }
     setSaving(true)
     try {
       if (isEdit) {
@@ -69,7 +86,12 @@ export function PartFormPage() {
         await partService.create(form)
         toast.success("Part created")
       }
-      navigate("/parts")
+      // Navigate back to the stock detail page if we came from there
+      if (form.stockId && !isEdit) {
+        navigate(`/stocks/${form.stockId}/parts`)
+      } else {
+        navigate("/stocks")
+      }
     } catch {
       toast.error(isEdit ? "Failed to update part" : "Failed to create part")
     } finally {
@@ -83,7 +105,7 @@ export function PartFormPage() {
   if (loading) {
     return (
       <div className="mx-auto max-w-lg space-y-6">
-        <Breadcrumbs segments={[{ label: "Parts", href: "/parts" }, { label: "Edit Part" }]} />
+        <Breadcrumbs segments={[{ label: "Stocks", href: "/stocks" }, { label: "Edit Part" }]} />
         <div className="flex items-center gap-2">
           <Skeleton className="h-9 w-9 rounded-md" />
           <Skeleton className="h-9 w-32" />
@@ -94,28 +116,13 @@ export function PartFormPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-10 w-full" />
-              </div>
+              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
             </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-10 w-full" />
-            </div>
+            <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-10 w-full" />
-              </div>
+              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
             </div>
           </CardContent>
         </Card>
@@ -126,13 +133,13 @@ export function PartFormPage() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <Breadcrumbs segments={[
-        { label: "Parts", href: "/parts" },
+        { label: "Stocks", href: "/stocks" },
         { label: isEdit ? "Edit Part" : "Add Part" }
       ]} />
 
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b pb-4 -mx-4 md:-mx-6 px-4 md:px-6">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/parts")}>
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <Package className="h-6 w-6 text-primary" />
@@ -170,15 +177,29 @@ export function PartFormPage() {
                 <Input id="manufacturer" value={form.manufacturer || ""} onChange={(e) => update("manufacturer", e.target.value)} placeholder="e.g., TOYOTA, SUZUKI" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input id="location" value={form.location || ""} onChange={(e) => update("location", e.target.value)} placeholder="e.g., H1, H4, H5" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="warehouse">Warehouse</Label>
-                <Input id="warehouse" value={form.warehouse || ""} onChange={(e) => update("warehouse", e.target.value)} placeholder="e.g., HEAD Q" />
-              </div>
+            {/* Stock dropdown */}
+            <div className="space-y-2">
+              <Label htmlFor="stock">Stock *</Label>
+              <Select
+                value={form.stockId ? String(form.stockId) : ""}
+                onValueChange={(v) => update("stockId", Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a stock" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stocks.length === 0 && (
+                    <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                      No stocks available. Create one first.
+                    </div>
+                  )}
+                  {stocks.map((stock) => (
+                    <SelectItem key={stock.id} value={String(stock.id)}>
+                      {stock.name}{stock.description ? ` — ${stock.description}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="unit">Unit</Label>
@@ -207,7 +228,7 @@ export function PartFormPage() {
               <Button type="submit" disabled={saving}>
                 {saving ? "Saving..." : isEdit ? "Update Part" : "Create Part"}
               </Button>
-              <Button type="button" variant="outline" onClick={() => navigate("/parts")}>
+              <Button type="button" variant="outline" onClick={() => navigate(-1)}>
                 Cancel
               </Button>
             </div>

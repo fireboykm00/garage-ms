@@ -10,8 +10,7 @@ public class RemainingStockResponse {
     private String name;
     private String model;
     private String manufacturer;
-    private String location;
-    private String warehouse;
+    private String stockName;
     private String unit;
     private Integer currentQuantity;
     private Integer minimumQuantity;
@@ -26,8 +25,9 @@ public class RemainingStockResponse {
         response.setName(part.getName());
         response.setModel(part.getModel());
         response.setManufacturer(part.getManufacturer());
-        response.setLocation(part.getLocation());
-        response.setWarehouse(part.getWarehouse());
+        if (part.getStock() != null) {
+            response.setStockName(part.getStock().getName());
+        }
         response.setUnit(part.getUnit());
         response.setCurrentQuantity(part.getCurrentQuantity());
         response.setMinimumQuantity(part.getMinimumQuantity());
@@ -48,10 +48,8 @@ public class RemainingStockResponse {
     public void setModel(String model) { this.model = model; }
     public String getManufacturer() { return manufacturer; }
     public void setManufacturer(String manufacturer) { this.manufacturer = manufacturer; }
-    public String getLocation() { return location; }
-    public void setLocation(String location) { this.location = location; }
-    public String getWarehouse() { return warehouse; }
-    public void setWarehouse(String warehouse) { this.warehouse = warehouse; }
+    public String getStockName() { return stockName; }
+    public void setStockName(String stockName) { this.stockName = stockName; }
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
     public Integer getCurrentQuantity() { return currentQuantity; }

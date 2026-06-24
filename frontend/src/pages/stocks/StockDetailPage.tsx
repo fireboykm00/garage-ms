@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from "react"
-import { Link } from "react-router-dom"
+import { useParams, useNavigate, Link } from "react-router-dom"
 import { useAuth } from "@/contexts/AuthContext"
 import { partService } from "@/services/partService"
-import type { Part } from "@/types"
+import { stockService } from "@/services/stockService"
+import type { Part, Stock } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Package, Plus, Pencil, Trash2, Search, AlertTriangle } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Package, Plus, Pencil, Trash2, Search, AlertTriangle, ArrowLeft } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   AlertDialog,
@@ -24,14 +25,33 @@ import { toast } from "sonner"
 import { useDocumentTitle } from "@/hooks/useDocumentTitle"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
 
-export function PartsPage() {
-  useDocumentTitle("Parts")
+export function StockDetailPage() {
+  const { id } = useParams()
+  const navigate = useNavigate()
   const { isAdmin, isStorekeeper } = useAuth()
-  const [parts, setParts] = useState<Part[]>([])
-  const [search, setSearch] = useState("")
-  const [loading, setLoading] = useState(true)
-
   const canEdit = isAdmin || isStorekeeper
+
+  const [stock, setStock] = useState<Stock | null>(null)
+  const [parts, setParts] = useState<Part[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
+
+  useDocumentTitle(stock ? `${stock.name} — Parts` : "Stock Parts")
+
+  useEffect(() => {
+    if (!id) return
+    setLoading(true)
+    Promise.all([
+      stockService.getById(Number(id)),
+      stockService.getParts(Number(id)),
+    ])
+      .then(([stockRes, partsRes]) => {
+        setStock(stockRes.data)
+        setParts(partsRes.data)
+      })
+      .catch(() => toast.error("Failed to load stock details"))
+      .finally(() => setLoading(false))
+  }, [id])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return parts
@@ -46,86 +66,104 @@ export function PartsPage() {
     )
   }, [parts, search])
 
-  useEffect(() => {
-    partService.getAll()
-      .then((res) => setParts(res.data))
-      .catch(() => toast.error("Failed to load parts"))
-      .finally(() => setLoading(false))
-  }, [])
-
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (partId: number) => {
     try {
-      await partService.delete(id)
+      await partService.delete(partId)
       toast.success("Part deleted")
-      partService.getAll()
-        .then((res) => setParts(res.data))
-        .catch(() => toast.error("Failed to load parts"))
+      const res = await stockService.getParts(Number(id))
+      setParts(res.data)
     } catch {
       toast.error("Failed to delete part")
     }
   }
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-8 w-8" />
+          <Skeleton className="h-8 w-48" />
+        </div>
+        <Skeleton className="h-10 w-full" />
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+        </div>
+      </div>
+    )
+  }
+
+  if (!stock) {
+    return (
+      <div className="space-y-6">
+        <Breadcrumbs segments={[{ label: "Stocks", href: "/stocks" }, { label: "Not Found" }]} />
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Package className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+            <h3 className="text-lg font-semibold">Stock not found</h3>
+            <Button asChild className="mt-4">
+              <Link to="/stocks">Back to Stocks</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      <Breadcrumbs segments={[{ label: "Parts" }]} />
+      <Breadcrumbs segments={[
+        { label: "Stocks", href: "/stocks" },
+        { label: stock.name },
+      ]} />
 
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b pb-4 pt-2 -mx-4 md:-mx-6 px-4 md:px-6">
-        <div className="flex items-center justify-between">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b pb-4 -mx-4 md:-mx-6 px-4 md:px-6">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/stocks")}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             <Package className="h-6 w-6 text-primary" />
-            <h1 className="text-2xl font-bold tracking-tight">Parts</h1>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">{stock.name}</h1>
+              {stock.description && (
+                <p className="text-sm text-muted-foreground">{stock.description}</p>
+              )}
+            </div>
           </div>
           {canEdit && (
             <Button asChild>
-              <Link to="/parts/new">
+              <Link to={`/stocks/${stock.id}/parts/new`}>
                 <Plus className="mr-1 h-4 w-4" /> Add Part
               </Link>
             </Button>
           )}
         </div>
+        <p className="text-sm text-muted-foreground ml-14">
+          {parts.length} part{parts.length !== 1 ? "s" : ""}
+        </p>
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           className="pl-9"
-          placeholder="Search by part number, description, model, manufacturer..."
+          placeholder="Search parts..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
-      {loading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
-              <CardContent className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-16" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : parts.length === 0 ? (
+      {parts.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Package className="mb-4 h-12 w-12 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-1">No parts yet</h3>
-            <p className="text-sm text-muted-foreground mb-4">Get started by adding your first part.</p>
+            <h3 className="text-lg font-semibold mb-1">No parts in this stock</h3>
+            <p className="text-sm text-muted-foreground mb-4">Add parts to this stock location.</p>
             {canEdit && (
               <Button asChild>
-                <Link to="/parts/new">Add Your First Part</Link>
+                <Link to={`/stocks/${stock.id}/parts/new`}>Add Your First Part</Link>
               </Button>
             )}
-          </CardContent>
-        </Card>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Search className="mb-4 h-12 w-12 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-1">No matching parts</h3>
-            <p className="text-sm text-muted-foreground">Try a different search term.</p>
           </CardContent>
         </Card>
       ) : (
@@ -138,7 +176,6 @@ export function PartsPage() {
                 <th className="p-3 font-medium">Description</th>
                 <th className="p-3 font-medium">Model</th>
                 <th className="p-3 font-medium">Manufacturer</th>
-                <th className="p-3 font-medium">Stock</th>
                 <th className="p-3 font-medium">Balance</th>
                 <th className="p-3 font-medium">Status</th>
                 {canEdit && <th className="p-3 font-medium">Actions</th>}
@@ -152,7 +189,6 @@ export function PartsPage() {
                   <td className="p-3">{part.name}</td>
                   <td className="p-3 text-muted-foreground">{part.model || "-"}</td>
                   <td className="p-3">{part.manufacturer || "-"}</td>
-                  <td className="p-3 text-muted-foreground">{part.stockName || "-"}</td>
                   <td className={`p-3 font-medium ${part.currentQuantity <= part.minimumQuantity ? "text-destructive" : ""}`}>
                     {part.currentQuantity} {part.unit}
                   </td>
@@ -169,7 +205,7 @@ export function PartsPage() {
                     <td className="p-3">
                       <div className="flex gap-1">
                         <Button asChild variant="outline" size="sm">
-                          <Link to={`/parts/${part.id}/edit`}>
+                          <Link to={`/stocks/${stock.id}/parts/${part.id}/edit`}>
                             <Pencil className="h-3 w-3" />
                           </Link>
                         </Button>
@@ -203,6 +239,9 @@ export function PartsPage() {
               ))}
             </tbody>
           </table>
+          {filtered.length === 0 && (
+            <p className="py-4 text-center text-sm text-muted-foreground">No matching parts.</p>
+          )}
         </div>
       )}
     </div>

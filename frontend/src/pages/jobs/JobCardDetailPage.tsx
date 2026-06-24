@@ -584,8 +584,7 @@ function AddPartButton({ jobId, onPartAdded }: { jobId: number; onPartAdded: (p:
       </div>
       {selected && (
         <p className="text-xs text-muted-foreground">
-          In stock: <strong>{selected.currentQuantity}</strong> {selected.unit}
-          {selected.warehouse ? ` [${selected.warehouse}]` : ""}
+          Balance: <strong>{selected.currentQuantity}</strong> {selected.unit}
         </p>
       )}
       {exceedsStock && (

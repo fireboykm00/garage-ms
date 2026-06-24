@@ -10,11 +10,11 @@ public class PartResponse {
     private String name;
     private String model;
     private String manufacturer;
-    private String location;
-    private String warehouse;
     private String unit;
     private Integer currentQuantity;
     private Integer minimumQuantity;
+    private Long stockId;
+    private String stockName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -26,11 +26,13 @@ public class PartResponse {
         response.setName(part.getName());
         response.setModel(part.getModel());
         response.setManufacturer(part.getManufacturer());
-        response.setLocation(part.getLocation());
-        response.setWarehouse(part.getWarehouse());
         response.setUnit(part.getUnit());
         response.setCurrentQuantity(part.getCurrentQuantity());
         response.setMinimumQuantity(part.getMinimumQuantity());
+        if (part.getStock() != null) {
+            response.setStockId(part.getStock().getId());
+            response.setStockName(part.getStock().getName());
+        }
         response.setCreatedAt(part.getCreatedAt());
         response.setUpdatedAt(part.getUpdatedAt());
         return response;
@@ -48,16 +50,16 @@ public class PartResponse {
     public void setModel(String model) { this.model = model; }
     public String getManufacturer() { return manufacturer; }
     public void setManufacturer(String manufacturer) { this.manufacturer = manufacturer; }
-    public String getLocation() { return location; }
-    public void setLocation(String location) { this.location = location; }
-    public String getWarehouse() { return warehouse; }
-    public void setWarehouse(String warehouse) { this.warehouse = warehouse; }
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
     public Integer getCurrentQuantity() { return currentQuantity; }
     public void setCurrentQuantity(Integer currentQuantity) { this.currentQuantity = currentQuantity; }
     public Integer getMinimumQuantity() { return minimumQuantity; }
     public void setMinimumQuantity(Integer minimumQuantity) { this.minimumQuantity = minimumQuantity; }
+    public Long getStockId() { return stockId; }
+    public void setStockId(Long stockId) { this.stockId = stockId; }
+    public String getStockName() { return stockName; }
+    public void setStockName(String stockName) { this.stockName = stockName; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

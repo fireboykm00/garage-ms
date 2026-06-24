@@ -40,6 +40,13 @@ export interface ApiError {
   details?: Record<string, string>
 }
 
+export interface Stock {
+  id: number
+  name: string
+  description: string | null
+  createdAt: string
+}
+
 export interface Part {
   id: number
   partNumber: string
@@ -47,11 +54,11 @@ export interface Part {
   name: string
   model: string | null
   manufacturer: string | null
-  location: string | null
-  warehouse: string | null
   unit: string
   currentQuantity: number
   minimumQuantity: number
+  stockId: number
+  stockName: string
   createdAt: string
   updatedAt: string
 }
@@ -62,11 +69,10 @@ export interface PartRequest {
   name: string
   model?: string
   manufacturer?: string
-  location?: string
-  warehouse?: string
   unit: string
   currentQuantity: number
   minimumQuantity: number
+  stockId: number
 }
 
 export interface StockTransaction {
@@ -110,13 +116,13 @@ export interface RemainingStockReport {
   name: string
   model: string | null
   manufacturer: string | null
-  location: string | null
-  warehouse: string | null
   unit: string
   currentQuantity: number
   minimumQuantity: number
   stockOut: number
   updatedAt: string
+  stockId: number
+  stockName: string
 }
 
 export interface DashboardStats {
@@ -128,6 +134,19 @@ export interface DashboardStats {
   openJobs: number
   inProgressJobs: number
   completedToday: number
+}
+
+export interface AggregatedStockOutEntry {
+  partNumber: string
+  partName: string
+  totalQuantity: number
+  date: string
+}
+
+export interface AggregatedStockOutReport {
+  date: string
+  entries: AggregatedStockOutEntry[]
+  dailyTotal: number
 }
 
 export type UserRole = "ROLE_ADMIN" | "ROLE_STOREKEEPER" | "ROLE_MECHANIC" | "ROLE_RECEPTIONIST"

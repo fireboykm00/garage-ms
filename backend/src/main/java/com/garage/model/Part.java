@@ -1,6 +1,7 @@
 package com.garage.model;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "parts")
@@ -34,10 +35,6 @@ public class Part {
 
     private String manufacturer;
 
-    private String location;
-
-    private String warehouse;
-
     @Column(nullable = false)
     private String unit = "pcs";
 
@@ -47,6 +44,11 @@ public class Part {
     @Column(name = "minimum_quantity", nullable = false)
     private Integer minimumQuantity = 0;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "stock_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private Stock stock;
+
     @Column(updatable = false)
     private java.time.LocalDateTime createdAt;
 
@@ -54,16 +56,16 @@ public class Part {
 
     public Part() {}
 
-    public Part(String partNumber, String name, String model, String manufacturer, String location, String warehouse, String unit, Integer currentQuantity, Integer minimumQuantity) {
+    public Part(String partNumber, String name, String model, String manufacturer,
+                String unit, Integer currentQuantity, Integer minimumQuantity, Stock stock) {
         this.partNumber = partNumber;
         this.name = name;
         this.model = model;
         this.manufacturer = manufacturer;
-        this.location = location;
-        this.warehouse = warehouse;
         this.unit = unit;
         this.currentQuantity = currentQuantity;
         this.minimumQuantity = minimumQuantity;
+        this.stock = stock;
     }
 
     public Long getId() { return id; }
@@ -78,16 +80,14 @@ public class Part {
     public void setModel(String model) { this.model = model; }
     public String getManufacturer() { return manufacturer; }
     public void setManufacturer(String manufacturer) { this.manufacturer = manufacturer; }
-    public String getLocation() { return location; }
-    public void setLocation(String location) { this.location = location; }
-    public String getWarehouse() { return warehouse; }
-    public void setWarehouse(String warehouse) { this.warehouse = warehouse; }
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
     public Integer getCurrentQuantity() { return currentQuantity; }
     public void setCurrentQuantity(Integer currentQuantity) { this.currentQuantity = currentQuantity; }
     public Integer getMinimumQuantity() { return minimumQuantity; }
     public void setMinimumQuantity(Integer minimumQuantity) { this.minimumQuantity = minimumQuantity; }
+    public Stock getStock() { return stock; }
+    public void setStock(Stock stock) { this.stock = stock; }
     public java.time.LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(java.time.LocalDateTime createdAt) { this.createdAt = createdAt; }
     public java.time.LocalDateTime getUpdatedAt() { return updatedAt; }

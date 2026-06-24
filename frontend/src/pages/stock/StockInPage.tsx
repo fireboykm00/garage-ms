@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo, useRef } from "react"
-import { partService } from "@/services/partService"
+import { useState, useEffect, useRef } from "react"
 import { stockService } from "@/services/stockService"
-import type { Part, StockInRequest, StockTransaction } from "@/types"
+import type { Stock, Part, StockInRequest, StockTransaction } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { ArrowDownToLine, Plus, Search } from "lucide-react"
+import { ArrowDownToLine, Plus } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -20,43 +19,53 @@ const QUICK_PRESETS = [1, 5, 10, 25, 50]
 
 export function StockInPage() {
   useDocumentTitle("Stock In")
+  const [stocks, setStocks] = useState<Stock[]>([])
+  const [selectedStock, setSelectedStock] = useState<Stock | null>(null)
   const [parts, setParts] = useState<Part[]>([])
   const [recentTransactions, setRecentTransactions] = useState<StockTransaction[]>([])
-  const [partSearch, setPartSearch] = useState("")
   const [form, setForm] = useState<StockInRequest>({ partId: 0, quantity: 1, note: "" })
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadingParts, setLoadingParts] = useState(false)
   const [successFlash, setSuccessFlash] = useState(false)
   const formRef = useRef<HTMLDivElement>(null)
 
-  const filteredParts = useMemo(() => {
-    if (!partSearch.trim()) return parts
-    const q = partSearch.toLowerCase()
-    return parts.filter(
-      (p) =>
-        p.partNumber.toLowerCase().includes(q) ||
-        p.name.toLowerCase().includes(q) ||
-        (p.model || "").toLowerCase().includes(q) ||
-        (p.warehouse || "").toLowerCase().includes(q)
-    )
-  }, [parts, partSearch])
-
   useEffect(() => {
     Promise.all([
-      partService.getAll(),
+      stockService.getAll(),
       stockService.getTransactions(),
     ])
-      .then(([partsRes, txRes]) => {
-        setParts(partsRes.data)
+      .then(([stocksRes, txRes]) => {
+        setStocks(stocksRes.data)
         setRecentTransactions(
-          txRes.data
-            .filter((t) => t.type === "IN")
-            .slice(0, 10)
+          txRes.data.filter((t) => t.type === "IN").slice(0, 10)
         )
       })
       .catch(() => toast.error("Failed to load data"))
       .finally(() => setLoading(false))
   }, [])
+
+  const handleStockChange = async (stockId: string) => {
+    const stock = stocks.find((s) => s.id === Number(stockId)) || null
+    setSelectedStock(stock)
+    setForm({ partId: 0, quantity: 1, note: "" })
+    if (stock) {
+      setLoadingParts(true)
+      try {
+        const res = await stockService.getParts(stock.id)
+        setParts(res.data)
+      } catch {
+        toast.error("Failed to load parts")
+        setParts([])
+      } finally {
+        setLoadingParts(false)
+      }
+    } else {
+      setParts([])
+    }
+  }
+
+  const selectedPart = parts.find((p) => p.id === form.partId)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,7 +73,6 @@ export function StockInPage() {
     setSaving(true)
     try {
       const res = await stockService.stockIn(form)
-      const selectedPart = parts.find((p) => p.id === form.partId)
       const msg = `✓ ${form.quantity}x ${selectedPart?.name || "part"} added to stock`
       toast.success(msg, {
         action: {
@@ -73,8 +81,6 @@ export function StockInPage() {
             try {
               await stockService.undoTransaction(res.data.id)
               toast.success("Stock in undone")
-              const partsRes = await partService.getAll()
-              setParts(partsRes.data)
             } catch {
               toast.error("Failed to undo")
             }
@@ -84,20 +90,19 @@ export function StockInPage() {
       setSuccessFlash(true)
       setTimeout(() => setSuccessFlash(false), 1500)
       setForm({ partId: 0, quantity: 1, note: "" })
-      setPartSearch("")
-      // Refresh transactions
-      const txRes = await stockService.getTransactions()
+      // Refresh
+      const [txRes, partsRes] = await Promise.all([
+        stockService.getTransactions(),
+        selectedStock ? stockService.getParts(selectedStock.id) : Promise.resolve(undefined),
+      ])
       setRecentTransactions(txRes.data.filter((t) => t.type === "IN").slice(0, 10))
-      const partsRes = await partService.getAll()
-      setParts(partsRes.data)
+      if (partsRes) setParts(partsRes.data)
     } catch {
       toast.error("Failed to record stock in")
     } finally {
       setSaving(false)
     }
   }
-
-  const selectedPart = parts.find((p) => p.id === form.partId)
 
   if (loading) {
     return (
@@ -143,42 +148,65 @@ export function StockInPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Step 1: Select Stock */}
               <div className="space-y-2">
-                <Label>Part</Label>
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="pl-9"
-                    placeholder="Search parts..."
-                    value={partSearch}
-                    onChange={(e) => setPartSearch(e.target.value)}
-                  />
-                </div>
+                <Label>Stock</Label>
                 <Select
-                  value={form.partId ? String(form.partId) : ""}
-                  onValueChange={(v) => setForm({ ...form, partId: Number(v) })}
+                  value={selectedStock ? String(selectedStock.id) : ""}
+                  onValueChange={handleStockChange}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a part" />
+                    <SelectValue placeholder="Select a stock" />
                   </SelectTrigger>
                   <SelectContent>
-                    {filteredParts.length === 0 && (
+                    {stocks.length === 0 && (
                       <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                        No parts found
+                        No stocks available
                       </div>
                     )}
-                    {filteredParts.map((part) => (
-                      <SelectItem key={part.id} value={String(part.id)}>
-                        {part.partNumber} - {part.name} ({part.currentQuantity} {part.unit}){part.warehouse ? ` [${part.warehouse}]` : ""}
+                    {stocks.map((stock) => (
+                      <SelectItem key={stock.id} value={String(stock.id)}>
+                        {stock.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
+              {/* Step 2: Select Part (only after stock selected) */}
+              {selectedStock && (
+                <div className="space-y-2">
+                  <Label>Part</Label>
+                  {loadingParts ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <Select
+                      value={form.partId ? String(form.partId) : ""}
+                      onValueChange={(v) => setForm({ ...form, partId: Number(v) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a part" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {parts.length === 0 && (
+                          <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                            No parts in this stock
+                          </div>
+                        )}
+                        {parts.map((part) => (
+                          <SelectItem key={part.id} value={String(part.id)}>
+                            {part.partNumber} - {part.name} (Balance: {part.currentQuantity})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+
               {selectedPart && (
                 <p className="text-sm text-muted-foreground">
-                  Current stock: <strong>{selectedPart.currentQuantity}</strong> {selectedPart.unit}
+                  Balance: <strong>{selectedPart.currentQuantity}</strong> {selectedPart.unit}
                 </p>
               )}
 
@@ -212,7 +240,7 @@ export function StockInPage() {
                 <Textarea id="note" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Supplier name, reason, etc." />
               </div>
 
-              <Button type="submit" className="w-full" disabled={saving}>
+              <Button type="submit" className="w-full" disabled={saving || !form.partId}>
                 {saving ? "Recording..." : "Record Stock In"}
               </Button>
             </form>

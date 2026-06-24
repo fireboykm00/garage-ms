@@ -12,4 +12,6 @@ public interface PartRepository extends JpaRepository<Part, Long> {
     List<Part> findByCurrentQuantityLessThanEqual(Integer minimumQuantity);
     @Query("SELECT p FROM Part p WHERE p.currentQuantity <= p.minimumQuantity")
     List<Part> findLowStockParts();
+    List<Part> findByStockIdOrderByNameAsc(Long stockId);
+    long countByStockId(Long stockId);
 }

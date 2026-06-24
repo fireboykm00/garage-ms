@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import ExcelJS from "exceljs"
 import { useDocumentTitle } from "@/hooks/useDocumentTitle"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
+
 export function RemainingStockReportPage() {
   useDocumentTitle("Remaining Stock Report")
   const [reports, setReports] = useState<RemainingStockReport[]>([])
@@ -26,8 +27,7 @@ export function RemainingStockReportPage() {
         r.name.toLowerCase().includes(q) ||
         (r.model || "").toLowerCase().includes(q) ||
         (r.manufacturer || "").toLowerCase().includes(q) ||
-        (r.location || "").toLowerCase().includes(q) ||
-        (r.warehouse || "").toLowerCase().includes(q)
+        (r.stockName || "").toLowerCase().includes(q)
     )
   }, [reports, search])
 
@@ -48,22 +48,20 @@ export function RemainingStockReportPage() {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet("Remaining Stock")
 
-    // Title row
-    ws.mergeCells(1, 1, 1, 10)
+    ws.mergeCells(1, 1, 1, 9)
     const titleRow = ws.getRow(1)
     titleRow.getCell(1).value = "GARAGE INVENTORY — Remaining Stock Report"
     titleRow.getCell(1).font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } }
     titleRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" }
     titleRow.height = 40
-    for (let c = 1; c <= 10; c++) {
+    for (let c = 1; c <= 9; c++) {
       ws.getCell(1, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1a365d" } }
     }
 
-    // Header row
     const headers = [
       "ITEM NO.", "OUR PART NUMBER", "PART NUMBER", "DESCRIPTION",
-      "MODELS", "MANUFACTURER", "LOCATIONS", "WAREHOUSES",
-      "QUANTITY", "STOCK OUT"
+      "MODELS", "MANUFACTURER", "STOCK",
+      "BALANCE", "STOCK OUT"
     ]
     const headerRow = ws.addRow(headers)
     for (let c = 1; c <= headers.length; c++) {
@@ -78,12 +76,11 @@ export function RemainingStockReportPage() {
     }
     headerRow.height = 28
 
-    // Data rows
     reports.forEach((r, i) => {
       const row = ws.addRow([
         i + 1, r.ourPartNumber || "", r.partNumber, r.name,
-        r.model || "", r.manufacturer || "", r.location || "",
-        r.warehouse || "", r.currentQuantity, r.stockOut || 0,
+        r.model || "", r.manufacturer || "", r.stockName || "",
+        r.currentQuantity, r.stockOut || 0,
       ])
       row.alignment = { vertical: "middle" }
       row.eachCell((cell) => {
@@ -95,8 +92,7 @@ export function RemainingStockReportPage() {
       })
     })
 
-    // Auto-width
-    const colWidths = [8, 16, 18, 30, 22, 18, 12, 12, 10, 10]
+    const colWidths = [8, 16, 18, 30, 22, 18, 14, 10, 10]
     colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w })
 
     const buf = await wb.xlsx.writeBuffer()
@@ -120,7 +116,6 @@ export function RemainingStockReportPage() {
         </Button>
       </div>
 
-      {/* Summary bar */}
       <Card className="bg-primary/5 border-primary/20">
         <CardContent className="flex items-center gap-4 py-3">
           <BarChart3 className="h-5 w-5 text-primary" />
@@ -151,7 +146,7 @@ export function RemainingStockReportPage() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   className="pl-9"
-                  placeholder="Search by part number, description, model, manufacturer, location, warehouse..."
+                  placeholder="Search by part number, description, model, manufacturer, stock..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -166,9 +161,8 @@ export function RemainingStockReportPage() {
                       <th className="pb-2 font-medium">DESCRIPTION</th>
                       <th className="pb-2 font-medium">MODELS</th>
                       <th className="pb-2 font-medium">MANUFACTURER</th>
-                      <th className="pb-2 font-medium">LOCATIONS</th>
-                      <th className="pb-2 font-medium">WAREHOUSES</th>
-                      <th className="pb-2 font-medium">QUANTITY</th>
+                      <th className="pb-2 font-medium">STOCK</th>
+                      <th className="pb-2 font-medium">BALANCE</th>
                       <th className="pb-2 font-medium">STOCK OUT</th>
                     </tr>
                   </thead>
@@ -181,8 +175,7 @@ export function RemainingStockReportPage() {
                         <td className="py-2">{r.name}</td>
                         <td className="py-2">{r.model || "-"}</td>
                         <td className="py-2">{r.manufacturer || "-"}</td>
-                        <td className="py-2">{r.location || "-"}</td>
-                        <td className="py-2">{r.warehouse || "-"}</td>
+                        <td className="py-2">{r.stockName || "-"}</td>
                         <td className="py-2 font-medium">{r.currentQuantity}</td>
                         <td className="py-2">{r.stockOut || 0}</td>
                       </tr>

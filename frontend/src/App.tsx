@@ -3,8 +3,9 @@ import { AuthProvider } from "@/contexts/AuthContext"
 import { MainLayout } from "@/components/layout/MainLayout"
 import { LoginPage } from "@/pages/auth/LoginPage"
 import { DashboardPage } from "@/pages/dashboard/DashboardPage"
-import { PartsPage } from "@/pages/parts/PartsPage"
 import { PartFormPage } from "@/pages/parts/PartFormPage"
+import { StocksPage } from "@/pages/stocks/StocksPage"
+import { StockDetailPage } from "@/pages/stocks/StockDetailPage"
 import { JobCardListPage } from "@/pages/jobs/JobCardListPage"
 import { JobCardFormPage } from "@/pages/jobs/JobCardFormPage"
 import { JobCardDetailPage } from "@/pages/jobs/JobCardDetailPage"
@@ -31,9 +32,18 @@ function AppRoutes() {
         <Route path="/jobs" element={<JobCardListPage />} />
         <Route path="/jobs/new" element={<JobCardFormPage />} />
         <Route path="/jobs/:id" element={<JobCardDetailPage />} />
-        <Route path="/parts" element={<PartsPage />} />
+
+        {/* Stock-based routing (primary) */}
+        <Route path="/stocks" element={<StocksPage />} />
+        <Route path="/stocks/:stockId/parts" element={<StockDetailPage />} />
+        <Route path="/stocks/:stockId/parts/new" element={<PartFormPage />} />
+        <Route path="/stocks/:stockId/parts/:partId/edit" element={<PartFormPage />} />
+
+        {/* Backward-compat part routes (redirect to stocks) */}
+        <Route path="/parts" element={<Navigate to="/stocks" replace />} />
         <Route path="/parts/new" element={<PartFormPage />} />
         <Route path="/parts/:id/edit" element={<PartFormPage />} />
+
         <Route path="/stock/in" element={<StockInPage />} />
         <Route path="/stock/out" element={<AdminRoute><StockOutPage /></AdminRoute>} />
         <Route path="/reports/stock-out" element={<StockOutReportPage />} />

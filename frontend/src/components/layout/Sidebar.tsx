@@ -62,7 +62,7 @@ export function Sidebar() {
       label: "Inventory",
       items: [
         ...((isAdmin || isStorekeeper || isMechanic)
-          ? [{ to: "/parts", label: "Parts", icon: Package }]
+          ? [{ to: "/stocks", label: "Stocks", icon: Package }]
           : []),
         ...((isAdmin || isStorekeeper)
           ? [{ to: "/stock/in", label: "Stock In", icon: ArrowDownToLine }]
@@ -99,7 +99,6 @@ export function Sidebar() {
   function isActiveItem(to: string) {
     if (location.pathname === to) return true
     if (location.pathname.startsWith(to + "/")) {
-      // Don't match if this exact path is another nav item
       const isExactChild = sections.some((s) =>
         s.items.some((other) => other.to !== to && location.pathname === other.to)
       )
@@ -110,7 +109,6 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile header */}
       <div className="mobile-header fixed top-0 left-0 right-0 z-50 flex h-14 items-center gap-3 border-b bg-background px-4 lg:hidden">
         <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -145,12 +143,10 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Mobile sidebar */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 transform border-r bg-background transition-transform duration-200 ease-in-out lg:hidden",
@@ -164,7 +160,6 @@ export function Sidebar() {
         {renderNavContent()}
       </aside>
 
-      {/* Desktop sidebar */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col lg:w-64 lg:border-r lg:bg-background lg:z-30">
         <div className="flex h-14 items-center gap-2 border-b px-4">
           <Wrench className="h-5 w-5 text-primary" />
@@ -201,7 +196,6 @@ export function Sidebar() {
   function renderNavContent() {
     return (
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {/* Dashboard link always at top */}
         <NavLink
           to="/dashboard"
           onClick={handleNavClick}
@@ -226,7 +220,7 @@ export function Sidebar() {
             </div>
             {section.items.map((item) => {
               const Icon = item.icon
-              const isPartsLink = item.to === "/parts"
+              const isStocksLink = item.to === "/stocks"
               return (
                 <NavLink
                   key={item.to}
@@ -241,7 +235,7 @@ export function Sidebar() {
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
                   {item.label}
-                  {isPartsLink && lowStockCount > 0 && (
+                  {isStocksLink && lowStockCount > 0 && (
                     <span className="ml-auto flex h-2 w-2 rounded-full bg-red-500" title={`${lowStockCount} low stock items`} />
                   )}
                 </NavLink>

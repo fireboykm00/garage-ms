@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react"
-import { partService } from "@/services/partService"
 import { stockService } from "@/services/stockService"
-import type { Part } from "@/types"
+import type { Stock, Part } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,13 +14,16 @@ import { ArrowUpFromLine, AlertTriangle, Search } from "lucide-react"
 import { useDocumentTitle } from "@/hooks/useDocumentTitle"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
 import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const REASONS = ["Job Card", "Adjustment", "Return to Supplier", "Damaged", "Other"]
 
 export function StockOutPage() {
   useDocumentTitle("Stock Out")
+  const [stocks, setStocks] = useState<Stock[]>([])
+  const [selectedStock, setSelectedStock] = useState<Stock | null>(null)
   const [parts, setParts] = useState<Part[]>([])
-  const [partSearch, setPartSearch] = useState("")
+  const [loadingParts, setLoadingParts] = useState(false)
   const [form, setForm] = useState({
     partId: 0,
     quantity: 1,
@@ -35,31 +37,35 @@ export function StockOutPage() {
   const [suggestions, setSuggestions] = useState<Part[]>([])
 
   useEffect(() => {
-    partService.getAll().then((res) => {
-      setParts(res.data)
-      setSuggestions(res.data)
-    }).catch(() => toast.error("Failed to load parts"))
+    stockService.getAll()
+      .then((res) => setStocks(res.data))
+      .catch(() => toast.error("Failed to load stocks"))
   }, [])
 
-  // Debounced part search for suggestions (200ms debounce per spec)
+  // Update suggestions when parts change
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (!partSearch.trim()) {
-      setSuggestions(parts.slice(0, 20))
-      return
+    setSuggestions(parts.slice(0, 20))
+  }, [parts])
+
+  const handleStockChange = async (stockId: string) => {
+    const stock = stocks.find((s) => s.id === Number(stockId)) || null
+    setSelectedStock(stock)
+    setForm({ partId: 0, quantity: 1, note: "", reason: "", jobCardNumber: "" })
+    if (stock) {
+      setLoadingParts(true)
+      try {
+        const res = await stockService.getParts(stock.id)
+        setParts(res.data)
+      } catch {
+        toast.error("Failed to load parts")
+        setParts([])
+      } finally {
+        setLoadingParts(false)
+      }
+    } else {
+      setParts([])
     }
-    debounceRef.current = setTimeout(() => {
-      const q = partSearch.toLowerCase()
-      setSuggestions(
-        parts.filter(
-          (p) =>
-            p.partNumber.toLowerCase().includes(q) ||
-            p.name.toLowerCase().includes(q)
-        ).slice(0, 20)
-      )
-    }, 200)
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [partSearch, parts])
+  }
 
   const selectedPart = parts.find((p) => p.id === form.partId)
   const exceedsStock = selectedPart && form.quantity > selectedPart.currentQuantity
@@ -90,9 +96,10 @@ export function StockOutPage() {
             try {
               await stockService.undoTransaction(res.data.id)
               toast.success("Stock out undone")
-              const partsRes = await partService.getAll()
-              setParts(partsRes.data)
-              setSuggestions(partsRes.data)
+              if (selectedStock) {
+                const partsRes = await stockService.getParts(selectedStock.id)
+                setParts(partsRes.data)
+              }
             } catch {
               toast.error("Failed to undo")
             }
@@ -100,10 +107,10 @@ export function StockOutPage() {
         },
       })
       setForm({ partId: 0, quantity: 1, note: "", reason: "", jobCardNumber: "" })
-      setPartSearch("")
-      const partsRes = await partService.getAll()
-      setParts(partsRes.data)
-      setSuggestions(partsRes.data)
+      if (selectedStock) {
+        const partsRes = await stockService.getParts(selectedStock.id)
+        setParts(partsRes.data)
+      }
     } catch {
       toast.error("Failed to record stock out")
     } finally {
@@ -125,76 +132,109 @@ export function StockOutPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Step 1: Select Stock */}
             <div className="space-y-2">
-              <Label>Part</Label>
-              <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      className="pl-9 cursor-pointer"
-                      placeholder="Search parts..."
-                      value={selectedPart ? `${selectedPart.partNumber} — ${selectedPart.name}` : partSearch}
-                      onChange={(e) => {
-                        setPartSearch(e.target.value)
-                        if (form.partId) setForm({ ...form, partId: 0 })
-                        setPopoverOpen(true)
-                      }}
-                      onFocus={() => setPopoverOpen(true)}
-                    />
-                  </div>
-                </PopoverTrigger>
-                <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start">
-                  <Command>
-                    <CommandInput
-                      placeholder="Search parts..."
-                      value={partSearch}
-                      onValueChange={setPartSearch}
-                    />
-                    <CommandGroup className="max-h-60 overflow-y-auto">
-                      {suggestions.length === 0 ? (
-                        <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                          No parts found
-                        </div>
-                      ) : (
-                        suggestions.map((part) => (
-                          <CommandItem
-                            key={part.id}
-                            value={`${part.partNumber} ${part.name}`}
-                            onSelect={() => {
-                              setForm({ ...form, partId: part.id })
-                              setPartSearch("")
-                              setPopoverOpen(false)
-                            }}
-                          >
-                            <div className="flex w-full items-center justify-between">
-                              <div>
-                                <span className="font-mono text-xs">{part.partNumber}</span>
-                                <span className="ml-2">{part.name}</span>
-                              </div>
-                              <span className="text-xs text-muted-foreground">
-                                {part.currentQuantity} {part.unit}
-                              </span>
-                            </div>
-                          </CommandItem>
-                        ))
-                      )}
-                    </CommandGroup>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <Label>Stock</Label>
+              <Select
+                value={selectedStock ? String(selectedStock.id) : ""}
+                onValueChange={handleStockChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a stock" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stocks.length === 0 && (
+                    <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                      No stocks available
+                    </div>
+                  )}
+                  {stocks.map((stock) => (
+                    <SelectItem key={stock.id} value={String(stock.id)}>
+                      {stock.name}{stock.description ? ` — ${stock.description}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+
+            {/* Step 2: Select Part */}
+            {selectedStock && (
+              <div className="space-y-2">
+                <Label>Part</Label>
+                {loadingParts ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          className="pl-9 cursor-pointer"
+                          placeholder="Search parts..."
+                          value={selectedPart ? `${selectedPart.partNumber} — ${selectedPart.name}` : ""}
+                          onFocus={() => setPopoverOpen(true)}
+                          readOnly
+                        />
+                      </div>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search parts..."
+                          onValueChange={(v) => {
+                            if (debounceRef.current) clearTimeout(debounceRef.current)
+                            debounceRef.current = setTimeout(() => {
+                              const q = v.toLowerCase()
+                              setSuggestions(
+                                parts.filter(
+                                  (p) =>
+                                    p.partNumber.toLowerCase().includes(q) ||
+                                    p.name.toLowerCase().includes(q)
+                                ).slice(0, 20)
+                              )
+                            }, 200)
+                          }}
+                        />
+                        <CommandGroup className="max-h-60 overflow-y-auto">
+                          {suggestions.length === 0 ? (
+                            <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                              No parts found
+                            </div>
+                          ) : (
+                            suggestions.map((part) => (
+                              <CommandItem
+                                key={part.id}
+                                value={`${part.partNumber} ${part.name}`}
+                                onSelect={() => {
+                                  setForm({ ...form, partId: part.id })
+                                  setPopoverOpen(false)
+                                }}
+                              >
+                                <div className="flex w-full items-center justify-between">
+                                  <div>
+                                    <span className="font-mono text-xs">{part.partNumber}</span>
+                                    <span className="ml-2">{part.name}</span>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    Balance: {part.currentQuantity} {part.unit}
+                                  </span>
+                                </div>
+                              </CommandItem>
+                            ))
+                          )}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+            )}
 
             {selectedPart && (
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">
-                  Available stock: <strong>{selectedPart.currentQuantity}</strong> {selectedPart.unit}
+                  Balance: <strong>{selectedPart.currentQuantity}</strong> {selectedPart.unit}
                 </p>
-                {selectedPart.warehouse && (
-                  <p className="text-xs text-muted-foreground">
-                    Warehouse: {selectedPart.warehouse}
-                  </p>
-                )}
               </div>
             )}
 
@@ -263,7 +303,7 @@ export function StockOutPage() {
               <Textarea id="note" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Additional details..." />
             </div>
 
-            <Button type="submit" className="w-full" disabled={saving || !!exceedsStock}>
+            <Button type="submit" className="w-full" disabled={saving || !!exceedsStock || !form.partId}>
               {saving ? "Recording..." : "Record Stock Out"}
             </Button>
           </form>

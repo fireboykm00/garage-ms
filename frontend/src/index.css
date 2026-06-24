@@ -72,7 +72,7 @@
   --chart-3: 215 30% 35%;
   --chart-4: 0 72% 51%;
   --chart-5: 35 80% 50%;
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   --sidebar: 0 0% 98%;
   --sidebar-foreground: 215 30% 12%;
   --sidebar-primary: 215 60% 23%;
@@ -127,6 +127,17 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Subtle dot pattern background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(hsl(var(--foreground)/0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  z-index: -1;
 }
 
 /* Print styles */

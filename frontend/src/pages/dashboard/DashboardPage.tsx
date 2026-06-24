@@ -59,7 +59,7 @@ export function DashboardPage() {
 
   const statCards = stats
     ? [
-        { title: "Total Parts", value: stats.totalParts, icon: Package, href: "/parts" },
+        { title: "Total Parts", value: stats.totalParts, icon: Package, href: "/stocks" },
         { title: "Open Jobs", value: stats.openJobs, icon: ClipboardList, href: "/jobs" },
         { title: "In Progress", value: stats.inProgressJobs, icon: PlayCircle, href: "/jobs" },
         { title: "Completed Today", value: stats.completedToday, icon: CheckCircle2, href: "/jobs" },
@@ -118,7 +118,7 @@ export function DashboardPage() {
           </Link>
         </Button>
         <Button asChild variant="outline">
-          <Link to="/parts/new">
+          <Link to="/stocks">
             <Package className="mr-1 h-4 w-4" /> Add Part
           </Link>
         </Button>

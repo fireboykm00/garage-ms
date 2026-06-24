@@ -1,9 +1,11 @@
 package com.garage.config;
 
 import com.garage.model.Part;
+import com.garage.model.Stock;
 import com.garage.model.User;
 import com.garage.model.enums.UserRole;
 import com.garage.repository.PartRepository;
+import com.garage.repository.StockRepository;
 import com.garage.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
@@ -19,6 +21,7 @@ public class DevDataInitializer implements CommandLineRunner {
     private static final Logger log = Logger.getLogger(DevDataInitializer.class.getName());
     private final UserRepository userRepository;
     private final PartRepository partRepository;
+    private final StockRepository stockRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -56,24 +59,22 @@ public class DevDataInitializer implements CommandLineRunner {
     private void loadDevParts() {
         if (partRepository.count() > 0) return;
 
-        partRepository.save(createPart("04152-31090", null, "Oil Filter", "Rav4",
-                "TOYOTA", "H1", "HEAD Q", 50, 5));
-        partRepository.save(createPart("23390-0L070", null, "Fuel Filter", "Hilux Revo",
-                "TOYOTA", "H1", "HEAD Q", 50, 5));
-        partRepository.save(createPart("17801-0L040", null, "Air Filter", "Hilux Revo",
-                "TOYOTA", "H1", "HEAD Q", 50, 5));
-        partRepository.save(createPart("47201-0K590", null, "Brake Master Cylinder", "Hilux Vigo",
-                "TOYOTA", "H2", "HEAD Q", 50, 5));
-        partRepository.save(createPart("212-11AKL", null, "Head Lamp-Left", "Hilux Revo",
-                "TOYOTA", "H4", "HEAD Q", 50, 5));
+        Stock headQ = stockRepository.findByName("HEAD Q").orElse(null);
+        Stock h1 = stockRepository.findByName("H1").orElse(null);
+        Stock h2 = stockRepository.findByName("H2").orElse(null);
+        Stock h4 = stockRepository.findByName("H4").orElse(null);
+
+        if (headQ == null) {
+            log.warning("Stocks not initialized yet, skipping dev parts");
+            return;
+        }
+
+        partRepository.save(new Part("04152-31090", "Oil Filter", "Rav4", "TOYOTA", "pcs", 50, 5, h1));
+        partRepository.save(new Part("23390-0L070", "Fuel Filter", "Hilux Revo", "TOYOTA", "pcs", 50, 5, h1));
+        partRepository.save(new Part("17801-0L040", "Air Filter", "Hilux Revo", "TOYOTA", "pcs", 50, 5, h4));
+        partRepository.save(new Part("47201-0K590", "Brake Master Cylinder", "Hilux Vigo", "TOYOTA", "pcs", 50, 5, h2));
+        partRepository.save(new Part("212-11AKL", "Head Lamp-Left", "Hilux Revo", "TOYOTA", "pcs", 50, 5, headQ));
 
         log.info("5 dev sample parts created");
-    }
-
-    private Part createPart(String partNumber, String ourPartNumber, String name, String model,
-                            String manufacturer, String location, String warehouse, int quantity, int minQty) {
-        Part p = new Part(partNumber, name, model, manufacturer, location, warehouse, "pcs", quantity, minQty);
-        p.setOurPartNumber(ourPartNumber);
-        return p;
     }
 }
