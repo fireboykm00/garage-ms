@@ -4,11 +4,12 @@ FROM maven:3.9-eclipse-temurin-21 AS builder
 WORKDIR /app
 
 # Cache dependencies layer
-COPY pom.xml ./
+# Files are in the backend/ subdirectory relative to repo-root build context
+COPY backend/pom.xml ./
 RUN mvn dependency:go-offline -B
 
 # Build the application
-COPY src ./src
+COPY backend/src ./src
 RUN mvn package -DskipTests -o
 
 # ---- Stage 2: Runtime ----
