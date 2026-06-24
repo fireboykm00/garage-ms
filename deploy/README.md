@@ -84,7 +84,7 @@
    | Variable | Value |
    |---|---|
    | `SPRING_PROFILES_ACTIVE` | `prod` |
-   | `SPRING_DATASOURCE_URL` | `jdbc:mysql://gateway01.eu-central-1.prod.aws.tidbcloud.com:4000/garage_db?ssl-mode=VERIFY_IDENTITY&serverTimezone=UTC` |
+   | `SPRING_DATASOURCE_URL` | `jdbc:mysql://gateway01.eu-central-1.prod.aws.tidbcloud.com:4000/garage_db?sslMode=VERIFY_IDENTITY&serverTimezone=UTC` |
    | `SPRING_DATASOURCE_USERNAME` | `2EZ5TVs79pzi2SJ.root` |
    | `SPRING_DATASOURCE_PASSWORD` | *(your TiDB cluster password)* |
    | `APP_JWT_SECRET` | *(generate: `openssl rand -base64 48`)* |
@@ -162,7 +162,7 @@
 
 | Variable | Required | Description |
 |---|---|---|
-| `SPRING_DATASOURCE_URL` | ✅ Yes | Full JDBC URL to TiDB Cloud: `jdbc:mysql://gateway...garage_db?ssl-mode=VERIFY_IDENTITY&serverTimezone=UTC` |
+| `SPRING_DATASOURCE_URL` | ✅ Yes | Full JDBC URL to TiDB Cloud: `jdbc:mysql://gateway...garage_db?sslMode=VERIFY_IDENTITY&serverTimezone=UTC` |
 | `SPRING_DATASOURCE_USERNAME` | ✅ Yes | TiDB Cloud username (e.g. `2EZ5TVs79pzi2SJ.root`) |
 | `SPRING_DATASOURCE_PASSWORD` | ✅ Yes | TiDB Cloud cluster password |
 | `APP_JWT_SECRET` | ✅ Yes | Min 32 chars — generate with `openssl rand -base64 48` |
@@ -224,7 +224,7 @@ Locally, the default `application.properties` still uses H2.
 | Problem | Likely Cause | Fix |
 |---|---|---|
 | 401 on every request | JWT secret mismatch between deploys | Set `APP_JWT_SECRET` to a fixed value — never change it after users exist |
-| Backend can't connect to TiDB | IP restrictions or wrong SSL mode | TiDB Cloud Serverless allows all IPs by default. Ensure `ssl-mode=VERIFY_IDENTITY` in URL |
+| Backend can't connect to TiDB | IP restrictions or wrong SSL mode | TiDB Cloud Serverless allows all IPs by default. Ensure `sslMode=VERIFY_IDENTITY` in URL |
 | CORS error in browser | `APP_FRONTEND_URL` doesn't match | Must be the exact origin (with protocol, no trailing slash): `https://garage-inventory.vercel.app` |
 | Blank page on Vercel | SPA routing not set up | Vercel auto-detects Vite SPAs. Check Settings → Rewrites: `/*` → `/index.html` |
 | Hibernate tables not created | User lacks DDL privileges | Run `schema.sql` manually, set `ddl-auto=validate` |
