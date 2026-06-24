@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useNavigate, useParams, Link } from "react-router-dom"
 import { jobCardService } from "@/services/jobCardService"
 import { partService } from "@/services/partService"
 import { useAuth } from "@/hooks/useAuth"
-import type { JobCard, JobCardPart, JobCardStatus, Part } from "@/types"
+import type { JobCard, JobCardEvent, JobCardPart, Part, JobCardStatus } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,14 +31,13 @@ const statusLabel: Record<string, string> = {
   CANCELLED: "Cancelled",
 }
 
-interface TimelineEvent {
-  id: string
-  type: "created" | "status" | "part_added" | "report" | "work_completed"
-  icon: string
-  title: string
-  description: string
-  timestamp: string
-  user?: string
+const eventIcon: Record<string, string> = {
+  CREATED: "📅",
+  STATUS_CHANGED: "🔧",
+  PART_ADDED: "➕",
+  PART_REMOVED: "➖",
+  REPORT_UPDATED: "📝",
+  WORK_COMPLETED_UPDATED: "✅",
 }
 
 export function JobCardDetailPage() {
@@ -51,6 +50,7 @@ export function JobCardDetailPage() {
   const [loading, setLoading] = useState(true)
   const [previousJobs, setPreviousJobs] = useState<JobCard[]>([])
   const [removingPartId, setRemovingPartId] = useState<number | null>(null)
+  const [events, setEvents] = useState<JobCardEvent[]>([])
 
   // Add Part form state
   const [showAddPartForm, setShowAddPartForm] = useState(false)
@@ -62,6 +62,7 @@ export function JobCardDetailPage() {
 
   const canEdit = isAdmin || isStorekeeper || isMechanic
   const isActive = job?.status === "OPEN" || job?.status === "IN_PROGRESS"
+  const canEditParts = job?.status === "IN_PROGRESS"
 
   useEffect(() => {
     if (!id) return
@@ -72,125 +73,23 @@ export function JobCardDetailPage() {
       .then(([jobRes, partsRes]) => {
         setJob(jobRes.data)
         setParts(partsRes.data)
-        // Load previous jobs for same vehicle/customer (Phase 7.2)
+        // Load previous jobs using dedicated endpoint
         const j = jobRes.data
-        const params: string[] = []
-        if (j.vehicleRegistration) params.push(`vehicleRegistration=${encodeURIComponent(j.vehicleRegistration)}`)
-        if (j.customerPhone) params.push(`customerPhone=${encodeURIComponent(j.customerPhone)}`)
-        if (params.length > 0) {
-          jobCardService.getAll().then((res) => {
-            const all = res.data
-            const prev = all.filter(
-              (jc) => jc.id !== j.id && (
-                (j.vehicleRegistration && jc.vehicleRegistration === j.vehicleRegistration) ||
-                (j.customerPhone && jc.customerPhone === j.customerPhone)
-              )
-            ).slice(0, 5)
-            setPreviousJobs(prev)
-          }).catch(() => console.error("Failed to load previous jobs"))
+        const phone = j.customerPhone || undefined
+        const vehicle = j.vehicleRegistration || undefined
+        if (phone || vehicle) {
+          jobCardService.getPreviousJobs(phone, vehicle, j.id)
+            .then((res) => setPreviousJobs(res.data))
+            .catch(() => console.error("Failed to load previous jobs"))
         }
+        // Load timeline events
+        jobCardService.getEvents(Number(id))
+          .then((res) => setEvents(res.data))
+          .catch(() => console.error("Failed to load events"))
       })
       .catch(() => toast.error("Failed to load job card"))
       .finally(() => setLoading(false))
   }, [id])
-
-  const updateStatus = async (status: JobCardStatus) => {
-    try {
-      const res = await jobCardService.updateStatus(job!.id, status)
-      setJob(res.data)
-      toast.success(`Status → ${statusLabel[status]}`)
-    } catch {
-      toast.error("Failed to update status")
-    }
-  }
-
-  const timelineEvents = useMemo((): TimelineEvent[] => {
-    if (!job) return []
-    const events: TimelineEvent[] = []
-
-    // Creation event
-    events.push({
-      id: "created",
-      type: "created",
-      icon: "📅",
-      title: "Job Card Created",
-      description: `Job ${job.jobNumber} was created`,
-      timestamp: job.createdAt,
-      user: job.createdByName,
-    })
-
-    // Part added events (from parts data)
-    parts.forEach((p) => {
-      events.push({
-        id: `part-${p.id}`,
-        type: "part_added",
-        icon: "➕",
-        title: "Part Added",
-        description: `${p.quantity}x ${p.partName} (${p.partNumber}) added to job`,
-        timestamp: p.createdAt || job.updatedAt,
-      })
-    })
-
-    // Status changes (inferred from updatedAt)
-    if (job.status === "IN_PROGRESS" || job.status === "COMPLETED" || job.status === "CANCELLED") {
-      events.push({
-        id: "status-in_progress",
-        type: "status",
-        icon: "🔧",
-        title: "Work Started",
-        description: "Job status changed to In Progress",
-        timestamp: job.updatedAt,
-      })
-    }
-    if (job.status === "COMPLETED") {
-      events.push({
-        id: "status-completed",
-        type: "status",
-        icon: "✅",
-        title: "Work Completed",
-        description: "Job marked as completed",
-        timestamp: job.updatedAt,
-      })
-    }
-    if (job.status === "CANCELLED") {
-      events.push({
-        id: "status-cancelled",
-        type: "status",
-        icon: "❌",
-        title: "Job Cancelled",
-        description: "Job was cancelled",
-        timestamp: job.updatedAt,
-      })
-    }
-
-    // Technical report events
-    if (job.technicalReport) {
-      events.push({
-        id: "report",
-        type: "report",
-        icon: "📝",
-        title: "Technical Report Updated",
-        description: "Technical report was updated",
-        timestamp: job.updatedAt,
-      })
-    }
-
-    // Work completed text
-    if (job.workCompleted) {
-      events.push({
-        id: "work-done",
-        type: "work_completed",
-        icon: "🔧",
-        title: "Work Description Updated",
-        description: "Work completed details were updated",
-        timestamp: job.updatedAt,
-      })
-    }
-
-    // Sort by timestamp ascending
-    events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-    return events
-  }, [job, parts])
 
   const handleUpdateTechnicalReport = async (report: string) => {
     if (!job) return
@@ -211,6 +110,16 @@ export function JobCardDetailPage() {
       toast.success("Work completed updated")
     } catch {
       toast.error("Failed to update work completed")
+    }
+  }
+
+  const updateStatus = async (status: JobCardStatus) => {
+    try {
+      const res = await jobCardService.updateStatus(job!.id, status)
+      setJob(res.data)
+      toast.success(`Status → ${statusLabel[status]}`)
+    } catch {
+      toast.error("Failed to update status")
     }
   }
 
@@ -334,16 +243,6 @@ export function JobCardDetailPage() {
               <XCircle className="mr-1 h-4 w-4" /> Cancel
             </Button>
           )}
-          {job.status === "COMPLETED" && isAdmin && (
-            <Button size="sm" variant="outline" onClick={() => updateStatus("OPEN")}>
-              Reopen
-            </Button>
-          )}
-          {job.status === "CANCELLED" && isAdmin && (
-            <Button size="sm" variant="outline" onClick={() => updateStatus("OPEN")}>
-              Reopen
-            </Button>
-          )}
           <Button size="sm" variant="outline" onClick={() => generateJobCardPDF(job, parts)}>
             <FileDown className="mr-1 h-4 w-4" /> Download PDF
           </Button>
@@ -452,15 +351,22 @@ export function JobCardDetailPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Parts Used</CardTitle>
-              {canEdit && isActive && (
+              {canEdit && canEditParts && (
                 <Button variant="outline" size="sm" onClick={() => { setShowAddPartForm(true); loadAddPartParts() }}>
                   <Plus className="mr-1 h-3 w-3" /> Add Part
                 </Button>
               )}
             </CardHeader>
-            <CardContent>
+              <CardContent>
               {parts.length === 0 && !showAddPartForm ? (
-                <p className="text-sm text-muted-foreground">No parts used yet.</p>
+                job?.status === "OPEN" ? (
+                  <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-sm text-amber-800 dark:text-amber-200">
+                    <Wrench className="h-4 w-4 shrink-0" />
+                    Start work on this job card to add parts.
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No parts used yet.</p>
+                )
               ) : (
                 <>
                   {parts.length > 0 && (
@@ -473,7 +379,7 @@ export function JobCardDetailPage() {
                             <th className="pb-2 font-medium">QTY</th>
                             <th className="pb-2 font-medium">UNIT</th>
                             <th className="pb-2 font-medium">EST. COST</th>
-                            {canEdit && isActive && (
+                            {canEdit && canEditParts && (
                               <th className="pb-2 font-medium text-right">ACTIONS</th>
                             )}
                           </tr>
@@ -486,7 +392,7 @@ export function JobCardDetailPage() {
                               <td className="py-2">{p.quantity}</td>
                               <td className="py-2">{p.unit || "-"}</td>
                               <td className="py-2 text-muted-foreground">—</td>
-                              {canEdit && isActive && (
+                              {canEdit && canEditParts && (
                                 <td className="px-4 py-2 text-right">
                                   <div className="flex items-center justify-end gap-1">
                                     <AlertDialog>
@@ -583,25 +489,25 @@ export function JobCardDetailPage() {
               <CardTitle className="text-base">Activity Timeline</CardTitle>
             </CardHeader>
             <CardContent>
-              {timelineEvents.length === 0 ? (
+              {events.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No events recorded yet.</p>
               ) : (
                 <div className="relative pl-8 space-y-6 before:absolute before:left-3 before:top-2 before:h-[calc(100%-16px)] before:w-0.5 before:bg-border">
-                  {timelineEvents.map((event) => (
+                  {events.map((event) => (
                     <div key={event.id} className="relative">
                       <div className="absolute -left-6 mt-1 flex h-5 w-5 items-center justify-center rounded-full bg-background border text-xs">
-                        {event.icon}
+                        {eventIcon[event.eventType] || "📌"}
                       </div>
                       <div>
-                        <p className="text-sm font-medium">{event.title}</p>
+                        <p className="text-sm font-medium">{event.eventType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</p>
                         <p className="text-xs text-muted-foreground">{event.description}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           <Clock className="inline h-3 w-3 mr-0.5" />
-                          {new Date(event.timestamp).toLocaleDateString("en-GB", {
+                          {new Date(event.createdAt).toLocaleDateString("en-GB", {
                             day: "2-digit", month: "short", year: "numeric",
                             hour: "2-digit", minute: "2-digit"
                           })}
-                          {event.user && ` by ${event.user}`}
+                          {event.performedBy && ` by ${event.performedBy}`}
                         </p>
                       </div>
                     </div>

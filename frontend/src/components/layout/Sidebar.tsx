@@ -13,7 +13,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -112,35 +111,10 @@ export function Sidebar() {
 
   return (
     <>
-      <div className="mobile-header fixed top-0 left-0 right-0 z-50 flex h-14 items-center gap-3 border-b bg-background px-4 lg:hidden">
+      <div className="mobile-header fixed top-0 left-0 right-0 z-50 flex h-12 items-center px-2 lg:hidden">
         <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
-        <div className="flex items-center gap-2 font-semibold">
-          <Wrench className="h-5 w-5" />
-          <span>Garage</span>
-        </div>
-        <div className="ml-auto flex items-center gap-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <div className="px-2 py-1.5 text-sm font-medium">{user?.fullName}</div>
-              <div className="px-2 py-0.5 text-xs text-muted-foreground">
-                {user?.role?.replace("ROLE_", "")}
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout} className="text-destructive">
-                <LogOut className="mr-2 h-4 w-4" /> Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       </div>
 
       {mobileOpen && (
@@ -158,6 +132,22 @@ export function Sidebar() {
           <span className="font-semibold">Garage Inventory</span>
         </div>
         {renderNavContent()}
+        <div className="border-t p-3">
+          <div className="flex items-center gap-3 px-1 py-1.5">
+            <Avatar className="h-7 w-7">
+              <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col text-sm">
+              <span className="font-medium">{user?.fullName}</span>
+              <span className="text-xs text-muted-foreground">
+                {user?.role?.replace("ROLE_", "")}
+              </span>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={logout} className="mt-1 w-full justify-start text-destructive">
+            <LogOut className="mr-2 h-4 w-4" /> Logout
+          </Button>
+        </div>
       </aside>
 
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col lg:w-64 lg:border-r lg:bg-background lg:z-30">
@@ -210,7 +200,7 @@ export function Sidebar() {
           Dashboard
         </NavLink>
 
-        {sections.map((section) => (
+        {sections.filter((s) => s.items.length > 0).map((section) => (
           <div key={section.label}>
             <SeparatorLine />
             <div className="px-3 py-1.5">

@@ -39,6 +39,14 @@ public class JobCardController {
         return ResponseEntity.ok(jobCardService.getJobCardById(id));
     }
 
+    @GetMapping("/previous")
+    public ResponseEntity<List<JobCardResponse>> getPrevious(
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) String vehicle,
+            @RequestParam(required = false) Long excludeId) {
+        return ResponseEntity.ok(jobCardService.getPreviousJobs(phone, vehicle, excludeId));
+    }
+
     @PostMapping
     public ResponseEntity<JobCardResponse> create(
             @Valid @RequestBody JobCardRequest request,

@@ -28,12 +28,11 @@ public class DashboardController {
         long totalParts = partRepository.count();
         long totalStockIn = stockTransactionRepository.countByType(TransactionType.IN);
         long totalStockOut = stockTransactionRepository.countByType(TransactionType.OUT);
-        long totalTransactions = totalStockIn + totalStockOut;
         long lowStockCount = partRepository.findLowStockParts().size();
         long openJobs = jobCardRepository.countByStatus(JobCardStatus.OPEN);
         long inProgressJobs = jobCardRepository.countByStatus(JobCardStatus.IN_PROGRESS);
         long completedToday = jobCardRepository.countCompletedToday();
-        return ResponseEntity.ok(new DashboardStatsResponse(totalParts, totalStockIn, totalStockOut, totalTransactions, lowStockCount, openJobs, inProgressJobs, completedToday));
+        return ResponseEntity.ok(new DashboardStatsResponse(totalParts, totalStockIn, totalStockOut, lowStockCount, openJobs, inProgressJobs, completedToday));
     }
 
     @GetMapping("/recent-jobs")

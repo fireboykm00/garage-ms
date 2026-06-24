@@ -8,9 +8,11 @@ import com.garage.exception.DuplicateFieldException;
 import com.garage.model.User;
 import com.garage.repository.UserRepository;
 import com.garage.security.JwtUtils;
+import com.garage.security.LoginRateLimiter;
 import com.garage.security.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,8 +28,12 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
+    private final LoginRateLimiter loginRateLimiter;
 
-    public JwtResponse login(LoginRequest request) {
+    public JwtResponse login(LoginRequest request, String ipAddress) {
+        if (!loginRateLimiter.isAllowed(ipAddress)) {
+            throw new BadCredentialsException("Too many login attempts. Please try again in 60 seconds.");
+        }
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -35,6 +41,7 @@ public class AuthService {
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         Set<String> roles = userDetails.getAuthorities().stream()
                 .map(auth -> auth.getAuthority()).collect(Collectors.toSet());
+        loginRateLimiter.reset(ipAddress);
         return new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(),
                 userDetails.getEmail(), userDetails.getFullName(), roles);
     }
@@ -59,6 +66,9 @@ public class AuthService {
         if (request.getNewPassword() != null && !request.getNewPassword().isBlank()) {
             if (request.getCurrentPassword() == null || !passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
                 throw new BadRequestException("Current password is incorrect");
+            }
+            if (request.getNewPassword().length() < 8 || request.getNewPassword().length() > 100) {
+                throw new BadRequestException("New password must be between 8 and 100 characters");
             }
             user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         }

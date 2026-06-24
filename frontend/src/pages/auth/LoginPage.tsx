@@ -28,7 +28,11 @@ export function LoginPage() {
     // Client-side field validation
     const errors: { username?: string; password?: string } = {}
     if (!username.trim()) errors.username = "Username is required"
-    if (!password.trim()) errors.password = "Password is required"
+    if (!password.trim()) {
+      errors.password = "Password is required"
+    } else if (password.length < 8) {
+      errors.password = "Password must be at least 8 characters"
+    }
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) return
 

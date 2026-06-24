@@ -131,7 +131,6 @@ export interface DashboardStats {
   totalParts: number
   totalStockIn: number
   totalStockOut: number
-  totalTransactions: number
   lowStockCount: number
   openJobs: number
   inProgressJobs: number
@@ -216,4 +215,15 @@ export interface JobCardPart {
 export interface AddPartRequest {
   partId: number
   quantity: number
+}
+
+export type EventType = "CREATED" | "STATUS_CHANGED" | "PART_ADDED" | "PART_REMOVED" | "REPORT_UPDATED" | "WORK_COMPLETED_UPDATED"
+
+export interface JobCardEvent {
+  id: number
+  jobCardId: number
+  eventType: EventType
+  description: string
+  performedBy: string
+  createdAt: string
 }

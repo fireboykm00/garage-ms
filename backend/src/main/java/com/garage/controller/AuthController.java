@@ -6,6 +6,7 @@ import com.garage.dto.response.JwtResponse;
 import com.garage.dto.response.UserResponse;
 import com.garage.security.UserDetailsImpl;
 import com.garage.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,8 +21,9 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public ResponseEntity<JwtResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<JwtResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        String ip = httpRequest.getRemoteAddr();
+        return ResponseEntity.ok(authService.login(request, ip));
     }
 
     @GetMapping("/me")

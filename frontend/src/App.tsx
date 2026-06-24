@@ -11,16 +11,16 @@ import { JobCardFormPage } from "@/pages/jobs/JobCardFormPage"
 import { JobCardDetailPage } from "@/pages/jobs/JobCardDetailPage"
 import { StockInPage } from "@/pages/stock/StockInPage"
 import { StockInTransactionsPage } from "@/pages/stock/StockInTransactionsPage"
-import { StockOutPage } from "@/pages/stock/StockOutPage"
+
 import { StockOutReportPage } from "@/pages/reports/StockOutReportPage"
 import { RemainingStockReportPage } from "@/pages/reports/RemainingStockReportPage"
 import { AdminUsersPage } from "@/pages/users/AdminUsersPage"
 import { useAuth } from "@/hooks/useAuth"
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { isAdmin, isAuthenticated } = useAuth()
+function RoleRoute({ children, roles }: { children: React.ReactNode; roles: string[] }) {
+  const { user, isAuthenticated } = useAuth()
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (!isAdmin) return <Navigate to="/dashboard" replace />
+  if (!user || !roles.includes(user.role)) return <Navigate to="/dashboard" replace />
   return <>{children}</>
 }
 
@@ -31,26 +31,26 @@ function AppRoutes() {
       <Route element={<MainLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/jobs" element={<JobCardListPage />} />
-        <Route path="/jobs/new" element={<JobCardFormPage />} />
+        <Route path="/jobs/new" element={<RoleRoute roles={["ROLE_ADMIN", "ROLE_STOREKEEPER", "ROLE_RECEPTIONIST"]}><JobCardFormPage /></RoleRoute>} />
         <Route path="/jobs/:id" element={<JobCardDetailPage />} />
 
         {/* Stock-based routing (primary) */}
-        <Route path="/stocks" element={<StocksPage />} />
-        <Route path="/stocks/:stockId/parts" element={<StockDetailPage />} />
-        <Route path="/stocks/:stockId/parts/new" element={<PartFormPage />} />
-        <Route path="/stocks/:stockId/parts/:partId/edit" element={<PartFormPage />} />
+        <Route path="/stocks" element={<RoleRoute roles={["ROLE_ADMIN", "ROLE_STOREKEEPER", "ROLE_MECHANIC"]}><StocksPage /></RoleRoute>} />
+        <Route path="/stocks/:stockId/parts" element={<RoleRoute roles={["ROLE_ADMIN", "ROLE_STOREKEEPER", "ROLE_MECHANIC"]}><StockDetailPage /></RoleRoute>} />
+        <Route path="/stocks/:stockId/parts/new" element={<RoleRoute roles={["ROLE_ADMIN", "ROLE_STOREKEEPER"]}><PartFormPage /></RoleRoute>} />
+        <Route path="/stocks/:stockId/parts/:partId/edit" element={<RoleRoute roles={["ROLE_ADMIN", "ROLE_STOREKEEPER"]}><PartFormPage /></RoleRoute>} />
 
         {/* Backward-compat part routes (redirect to stocks) */}
         <Route path="/parts" element={<Navigate to="/stocks" replace />} />
-        <Route path="/parts/new" element={<PartFormPage />} />
-        <Route path="/parts/:id/edit" element={<PartFormPage />} />
+        <Route path="/parts/new" element={<RoleRoute roles={["ROLE_ADMIN", "ROLE_STOREKEEPER"]}><PartFormPage /></RoleRoute>} />
+        <Route path="/parts/:id/edit" element={<RoleRoute roles={["ROLE_ADMIN", "ROLE_STOREKEEPER"]}><PartFormPage /></RoleRoute>} />
 
-        <Route path="/stock/in" element={<StockInPage />} />
-        <Route path="/stock/in/transactions" element={<StockInTransactionsPage />} />
-        <Route path="/stock/out" element={<AdminRoute><StockOutPage /></AdminRoute>} />
-        <Route path="/reports/stock-out" element={<StockOutReportPage />} />
-        <Route path="/reports/remaining-stock" element={<RemainingStockReportPage />} />
-        <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
+        <Route path="/stock/in" element={<RoleRoute roles={["ROLE_ADMIN", "ROLE_STOREKEEPER"]}><StockInPage /></RoleRoute>} />
+        <Route path="/stock/in/transactions" element={<RoleRoute roles={["ROLE_ADMIN", "ROLE_STOREKEEPER"]}><StockInTransactionsPage /></RoleRoute>} />
+
+        <Route path="/reports/stock-out" element={<RoleRoute roles={["ROLE_ADMIN", "ROLE_STOREKEEPER", "ROLE_MECHANIC"]}><StockOutReportPage /></RoleRoute>} />
+        <Route path="/reports/remaining-stock" element={<RoleRoute roles={["ROLE_ADMIN", "ROLE_STOREKEEPER", "ROLE_MECHANIC"]}><RemainingStockReportPage /></RoleRoute>} />
+        <Route path="/admin/users" element={<RoleRoute roles={["ROLE_ADMIN"]}><AdminUsersPage /></RoleRoute>} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

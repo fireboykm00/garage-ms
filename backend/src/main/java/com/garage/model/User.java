@@ -2,6 +2,7 @@ package com.garage.model;
 
 import com.garage.model.enums.UserRole;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Entity
@@ -29,6 +30,7 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @Size(min = 8, max = 100)
     @Column(nullable = false)
     private String password;
 

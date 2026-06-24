@@ -3,7 +3,7 @@ package com.garage.model;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "job_card_parts")
+@Table(name = "job_card_parts", uniqueConstraints = @UniqueConstraint(columnNames = {"job_card_id", "part_id"}))
 public class JobCardPart {
 
     @PrePersist

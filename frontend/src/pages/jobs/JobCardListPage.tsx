@@ -212,6 +212,9 @@ export function JobCardListPage() {
                             {job.vehicleRegistration && (
                               <p className="text-muted-foreground truncate">{job.vehicleRegistration}</p>
                             )}
+                            {job.requestedWork && (
+                              <p className="text-muted-foreground truncate">{job.requestedWork}</p>
+                            )}
                             <p className="text-muted-foreground text-[10px]">
                               {new Date(job.createdAt).toLocaleDateString()}
                             </p>
@@ -251,6 +254,9 @@ export function JobCardListPage() {
                       {new Date(job.createdAt).toLocaleDateString()}
                     </span>
                   </div>
+                  {job.requestedWork && (
+                    <p className="mt-1.5 truncate text-xs text-muted-foreground">{job.requestedWork}</p>
+                  )}
                 </CardContent>
               </Card>
             </Link>

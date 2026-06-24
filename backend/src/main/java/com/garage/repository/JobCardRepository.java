@@ -15,6 +15,8 @@ public interface JobCardRepository extends JpaRepository<JobCard, Long> {
     @Query("SELECT COUNT(j) FROM JobCard j WHERE j.status = 'COMPLETED' AND CAST(j.updatedAt AS date) = CURRENT_DATE")
     long countCompletedToday();
     List<JobCard> findTop5ByOrderByCreatedAtDesc();
+    @Query("SELECT j FROM JobCard j WHERE j.customerPhone = :phone OR j.vehicleRegistration = :vehicle ORDER BY j.createdAt DESC")
+    List<JobCard> findByCustomerPhoneOrVehicleRegistrationOrderByCreatedAtDesc(String phone, String vehicle);
     List<JobCard> findByVehicleRegistrationOrderByCreatedAtDesc(String vehicleRegistration);
     List<JobCard> findByCustomerPhoneOrderByCreatedAtDesc(String customerPhone);
 }

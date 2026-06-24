@@ -4,7 +4,6 @@ public class DashboardStatsResponse {
     private long totalParts;
     private long totalStockIn;
     private long totalStockOut;
-    private long totalTransactions;
     private long lowStockCount;
     private long openJobs;
     private long inProgressJobs;
@@ -12,11 +11,10 @@ public class DashboardStatsResponse {
 
     public DashboardStatsResponse() {}
 
-    public DashboardStatsResponse(long totalParts, long totalStockIn, long totalStockOut, long totalTransactions, long lowStockCount, long openJobs, long inProgressJobs, long completedToday) {
+    public DashboardStatsResponse(long totalParts, long totalStockIn, long totalStockOut, long lowStockCount, long openJobs, long inProgressJobs, long completedToday) {
         this.totalParts = totalParts;
         this.totalStockIn = totalStockIn;
         this.totalStockOut = totalStockOut;
-        this.totalTransactions = totalTransactions;
         this.lowStockCount = lowStockCount;
         this.openJobs = openJobs;
         this.inProgressJobs = inProgressJobs;
@@ -29,8 +27,6 @@ public class DashboardStatsResponse {
     public void setTotalStockIn(long totalStockIn) { this.totalStockIn = totalStockIn; }
     public long getTotalStockOut() { return totalStockOut; }
     public void setTotalStockOut(long totalStockOut) { this.totalStockOut = totalStockOut; }
-    public long getTotalTransactions() { return totalTransactions; }
-    public void setTotalTransactions(long totalTransactions) { this.totalTransactions = totalTransactions; }
     public long getLowStockCount() { return lowStockCount; }
     public void setLowStockCount(long lowStockCount) { this.lowStockCount = lowStockCount; }
     public long getOpenJobs() { return openJobs; }

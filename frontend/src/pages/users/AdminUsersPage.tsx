@@ -260,7 +260,7 @@ export function AdminUsersPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password *</Label>
-                <Input id="password" type="password" value={formData.password} onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setCreateFieldErrors((prev) => { const next = { ...prev }; delete next.password; return next; }); }} required placeholder="Password" className={createFieldErrors.password ? "border-destructive" : ""} />
+                <Input id="password" type="password" value={formData.password} onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setCreateFieldErrors((prev) => { const next = { ...prev }; delete next.password; return next; }); }} required minLength={8} maxLength={100} placeholder="Password (min. 8 characters)" className={createFieldErrors.password ? "border-destructive" : ""} />
                 {createFieldErrors.password && <p className="text-xs text-destructive">{createFieldErrors.password}</p>}
               </div>
               <div className="space-y-2">

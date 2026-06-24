@@ -1,5 +1,5 @@
 import { api } from "@/lib/api"
-import type { AddPartRequest, JobCard, JobCardPart, JobCardRequest, JobCardStatus } from "@/types"
+import type { AddPartRequest, JobCard, JobCardEvent, JobCardPart, JobCardRequest, JobCardStatus } from "@/types"
 
 export const jobCardService = {
   getAll: () => api.get<JobCard[]>("/job-cards"),
@@ -16,4 +16,12 @@ export const jobCardService = {
   getParts: (id: number) => api.get<JobCardPart[]>(`/job-cards/${id}/parts`),
   removePart: (jobCardId: number, jobCardPartId: number) =>
     api.delete(`/job-cards/${jobCardId}/parts/${jobCardPartId}`),
+  getPreviousJobs: (phone?: string, vehicle?: string, excludeId?: number) => {
+    const params = new URLSearchParams()
+    if (phone) params.set("phone", phone)
+    if (vehicle) params.set("vehicle", vehicle)
+    if (excludeId) params.set("excludeId", String(excludeId))
+    return api.get<JobCard[]>(`/job-cards/previous?${params}`)
+  },
+  getEvents: (id: number) => api.get<JobCardEvent[]>(`/job-cards/${id}/events`),
 }

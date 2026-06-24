@@ -7,11 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   Package, ArrowDownToLine, ClipboardList, PlayCircle, CheckCircle2,
-  Plus, AlertTriangle, Wrench, Clock, RefreshCw
+  Plus, AlertTriangle, Wrench, Clock, RefreshCw, ArrowUpFromLine
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useAuth } from "@/hooks/useAuth"
 import { useDocumentTitle } from "@/hooks/useDocumentTitle"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
 import { timeSince } from "@/lib/utils"
@@ -24,7 +25,26 @@ const statusLabel: Record<string, string> = {
   CANCELLED: "Cancelled",
 }
 
+function StatCard({ title, value, icon: Icon, href }: { title: string; value: number; icon: React.ElementType; href: string }) {
+  return (
+    <Link to={href}>
+      <Card className="cursor-pointer transition-shadow hover:shadow-lg">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+          <Icon className="h-4 w-4 text-primary/70" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{value}</div>
+        </CardContent>
+      </Card>
+    </Link>
+  )
+}
+
+
+
 export function DashboardPage() {
+  const { isAdmin, isStorekeeper, isMechanic, isReceptionist } = useAuth()
   useDocumentTitle("Dashboard")
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [transactions, setTransactions] = useState<StockTransaction[]>([])
@@ -85,15 +105,9 @@ export function DashboardPage() {
   }, [])
 
   const inProgressJobs = recentJobs.filter((j) => j.status === "IN_PROGRESS")
-
-  const statCards = stats
-    ? [
-        { title: "Total Parts", value: stats.totalParts, icon: Package, href: "/stocks" },
-        { title: "Open Jobs", value: stats.openJobs, icon: ClipboardList, href: "/jobs" },
-        { title: "In Progress", value: stats.inProgressJobs, icon: PlayCircle, href: "/jobs" },
-        { title: "Completed Today", value: stats.completedToday, icon: CheckCircle2, href: "/jobs" },
-      ]
-    : []
+  const canSeeInventory = isAdmin || isStorekeeper || isMechanic
+  const canManageStock = isAdmin || isStorekeeper
+  const canManageJobs = isAdmin || isStorekeeper || isReceptionist
 
   // Full error state
   if (hasError && !loading) {
@@ -129,7 +143,7 @@ export function DashboardPage() {
       </div>
 
       {/* Stat cards row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {loading
           ? Array.from({ length: 4 }).map((_, i) => (
               <Card key={i}>
@@ -141,101 +155,165 @@ export function DashboardPage() {
                 </CardContent>
               </Card>
             ))
-          : statCards.map((stat) => {
-              const Icon = stat.icon
-              return (
-                <Link key={stat.title} to={stat.href}>
-                  <Card className="cursor-pointer transition-shadow hover:shadow-md">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-                      <Icon className="h-4 w-4 text-primary/70" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{stat.value}</div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              )
-            })}
+          : stats && (
+            <>
+              {canSeeInventory && (
+                <StatCard title="Total Parts" value={stats.totalParts} icon={Package} href="/stocks" />
+              )}
+              {(isAdmin || isStorekeeper) && (
+                <StatCard title="Stock In" value={stats.totalStockIn} icon={ArrowDownToLine} href="/stock/in" />
+              )}
+              {(isAdmin || isStorekeeper) && (
+                <StatCard title="Stock Out" value={stats.totalStockOut} icon={ArrowUpFromLine} href="/reports/stock-out" />
+              )}
+              {canSeeInventory && stats.lowStockCount > 0 && (
+                <StatCard title="Low Stock" value={stats.lowStockCount} icon={AlertTriangle} href="/stocks" />
+              )}
+            </>
+          )}
       </div>
+
+      {/* Jobs wrapper card */}
+      {stats && (
+        <Card className="transition-shadow hover:shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Jobs</CardTitle>
+            <Link to="/jobs"><ClipboardList className="h-4 w-4 text-primary/70 cursor-pointer hover:text-primary" /></Link>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-3">
+              <Link to="/jobs" className="block">
+                <Card className="cursor-pointer transition-shadow hover:shadow border">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted-foreground">Open</span>
+                      <ClipboardList className="h-3.5 w-3.5 text-primary/70" />
+                    </div>
+                    <div className="text-xl font-bold">{stats.openJobs}</div>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link to="/jobs" className="block">
+                <Card className="cursor-pointer transition-shadow hover:shadow border">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted-foreground">In Progress</span>
+                      <PlayCircle className="h-3.5 w-3.5 text-primary/70" />
+                    </div>
+                    <div className="text-xl font-bold">{stats.inProgressJobs}</div>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link to="/jobs" className="block">
+                <Card className="cursor-pointer transition-shadow hover:shadow border">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted-foreground">Completed Today</span>
+                      <CheckCircle2 className="h-3.5 w-3.5 text-primary/70" />
+                    </div>
+                    <div className="text-xl font-bold">{stats.completedToday}</div>
+                  </CardContent>
+                </Card>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick actions */}
       <div className="flex flex-wrap gap-2">
-        <Button asChild>
-          <Link to="/jobs/new">
-            <Plus className="mr-1 h-4 w-4" /> New Job Card
-          </Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link to="/stock/in">
-            <ArrowDownToLine className="mr-1 h-4 w-4" /> Stock In
-          </Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link to="/stocks">
-            <Package className="mr-1 h-4 w-4" /> Add Part
-          </Link>
-        </Button>
+        {canManageJobs && (
+          <Button asChild>
+            <Link to="/jobs/new">
+              <Plus className="mr-1 h-4 w-4" /> New Job Card
+            </Link>
+          </Button>
+        )}
+        {canManageStock && (
+          <Button asChild variant="outline">
+            <Link to="/stock/in">
+              <ArrowDownToLine className="mr-1 h-4 w-4" /> Stock In
+            </Link>
+          </Button>
+        )}
+        {(isAdmin || isStorekeeper) && (
+          <Button asChild variant="outline">
+            <Link to="/reports/stock-out">
+              <ArrowUpFromLine className="mr-1 h-4 w-4" /> Stock Out
+            </Link>
+          </Button>
+        )}
+        {canManageStock && (
+          <Button asChild variant="outline">
+            <Link to="/stocks">
+              <Package className="mr-1 h-4 w-4" /> Add Part
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Low stock + In Progress row */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Low stock alerts */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-destructive" />
-              Low Stock Alerts
-            </CardTitle>
-            {stats && stats.lowStockCount > 0 && (
-              <Badge variant="destructive">{stats.lowStockCount}</Badge>
-            )}
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : errors.lowStock ? (
-              <p className="text-sm text-muted-foreground">Failed to load low stock data.</p>
-            ) : lowStockParts.length === 0 ? (
-              <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                All items are well-stocked
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {lowStockParts.map((part) => (
-                  <div
-                    key={part.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {part.name || part.partNumber}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {part.partNumber} · Min: {part.minimumQuantity}
-                      </p>
+        {/* Low stock alerts - only for inventory roles */}
+        {canSeeInventory && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                Low Stock Items
+              </CardTitle>
+              {stats && stats.lowStockCount > 0 && (
+                <Badge variant="destructive">{stats.lowStockCount}</Badge>
+              )}
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : errors.lowStock ? (
+                <p className="text-sm text-muted-foreground">Failed to load low stock data.</p>
+              ) : lowStockParts.length === 0 ? (
+                <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  All items are well-stocked
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {lowStockParts.slice(0, 5).map((part) => (
+                    <div
+                      key={part.id}
+                      className="flex items-center justify-between rounded-lg border p-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {part.name || part.partNumber}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {part.partNumber} · Min: {part.minimumQuantity}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-bold text-destructive">
+                          {part.currentQuantity}
+                        </span>
+                        {canManageStock && (
+                          <Button asChild variant="outline" size="sm">
+                            <Link to={part.id ? `/stock/in?partId=${part.id}` : "/stock/in"}>
+                              <ArrowDownToLine className="h-3 w-3" />
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold text-destructive">
-                        {part.currentQuantity}
-                      </span>
-                      <Button asChild variant="outline" size="sm">
-                        <Link to={part.id ? `/stock/in?partId=${part.id}` : "/stock/in"}>
-                          <ArrowDownToLine className="h-3 w-3" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* In Progress jobs */}
         <Card>
@@ -328,57 +406,59 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Recent Transactions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : errors.transactions ? (
-              <p className="text-sm text-muted-foreground">Failed to load transactions data.</p>
-            ) : transactions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No transactions yet.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="pb-2 font-medium">PART</th>
-                      <th className="pb-2 font-medium">TYPE</th>
-                      <th className="pb-2 font-medium">QTY</th>
-                      <th className="pb-2 font-medium">BY</th>
-                      <th className="pb-2 font-medium">DATE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.map((tx) => (
-                      <tr key={tx.id} className="border-b last:border-0">
-                        <td className="py-2">{tx.partName}</td>
-                        <td className="py-2">
-                          <span className={`text-xs font-medium ${
-                            tx.type === "IN" ? "text-green-600" : "text-red-600"
-                          }`}>
-                            {tx.type}
-                          </span>
-                        </td>
-                        <td className="py-2">{tx.quantity}</td>
-                        <td className="py-2 text-muted-foreground">{tx.createdByName}</td>
-                        <td className="py-2 text-muted-foreground">
-                          {new Date(tx.createdAt).toLocaleDateString()}
-                        </td>
+        {(isAdmin || isStorekeeper) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Recent Transactions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
+              ) : errors.transactions ? (
+                <p className="text-sm text-muted-foreground">Failed to load transactions data.</p>
+              ) : transactions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No transactions yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="pb-2 font-medium">PART</th>
+                        <th className="pb-2 font-medium">TYPE</th>
+                        <th className="pb-2 font-medium">QTY</th>
+                        <th className="pb-2 font-medium">BY</th>
+                        <th className="pb-2 font-medium">DATE</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    </thead>
+                    <tbody>
+                      {transactions.map((tx) => (
+                        <tr key={tx.id} className="border-b last:border-0">
+                          <td className="py-2">{tx.partName}</td>
+                          <td className="py-2">
+                            <span className={`text-xs font-medium ${
+                              tx.type === "IN" ? "text-green-600" : "text-red-600"
+                            }`}>
+                              {tx.type}
+                            </span>
+                          </td>
+                          <td className="py-2">{tx.quantity}</td>
+                          <td className="py-2 text-muted-foreground">{tx.createdByName}</td>
+                          <td className="py-2 text-muted-foreground">
+                            {new Date(tx.createdAt).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

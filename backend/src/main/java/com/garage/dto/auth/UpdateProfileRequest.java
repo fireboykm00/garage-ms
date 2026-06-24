@@ -4,6 +4,8 @@ public class UpdateProfileRequest {
     private String fullName;
     private String email;
     private String currentPassword;
+
+    @jakarta.validation.constraints.Size(min = 8, max = 100)
     private String newPassword;
 
     public UpdateProfileRequest() {}

@@ -29,7 +29,8 @@ public class StockTransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Part not found with id: " + request.getPartId()));
         part.setCurrentQuantity(part.getCurrentQuantity() + request.getQuantity());
         partRepository.save(part);
-        StockTransaction tx = new StockTransaction(part, TransactionType.IN, request.getQuantity(), request.getNote(), user);
+        StockTransaction tx = new StockTransaction(part, TransactionType.IN, request.getQuantity(), request.getNote(),
+                TransactionSourceType.MANUAL, null, user);
         tx = stockTransactionRepository.save(tx);
         return StockTransactionResponse.fromEntity(tx);
     }
@@ -71,7 +72,8 @@ public class StockTransactionService {
         // Create a reversal transaction
         TransactionType reversalType = tx.getType() == TransactionType.IN ? TransactionType.OUT : TransactionType.IN;
         StockTransaction reversal = new StockTransaction(part, reversalType, tx.getQuantity(),
-                "Undo of transaction #" + transactionId + " (" + tx.getNote() + ")", user);
+                "Undo of transaction #" + transactionId + " (" + tx.getNote() + ")",
+                TransactionSourceType.MANUAL, null, user);
         reversal = stockTransactionRepository.save(reversal);
 
         return StockTransactionResponse.fromEntity(reversal);

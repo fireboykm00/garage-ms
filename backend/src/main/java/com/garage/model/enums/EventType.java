@@ -5,7 +5,6 @@ public enum EventType {
     STATUS_CHANGED,
     PART_ADDED,
     PART_REMOVED,
-    PART_REPLACED,
     REPORT_UPDATED,
     WORK_COMPLETED_UPDATED
 }
