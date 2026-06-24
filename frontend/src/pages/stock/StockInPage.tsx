@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { ArrowDownToLine, Plus } from "lucide-react"
+import { ArrowDownToLine, Plus, ExternalLink } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -90,13 +90,17 @@ export function StockInPage() {
       setSuccessFlash(true)
       setTimeout(() => setSuccessFlash(false), 1500)
       setForm({ partId: 0, quantity: 1, note: "" })
-      // Refresh
-      const [txRes, partsRes] = await Promise.all([
-        stockService.getTransactions(),
-        selectedStock ? stockService.getParts(selectedStock.id) : Promise.resolve(undefined),
-      ])
-      setRecentTransactions(txRes.data.filter((t) => t.type === "IN").slice(0, 10))
-      if (partsRes) setParts(partsRes.data)
+      // Refresh data (separate try/catch so refresh failures don't override success)
+      try {
+        const [txRes, partsRes] = await Promise.all([
+          stockService.getTransactions(),
+          selectedStock ? stockService.getParts(selectedStock.id) : Promise.resolve(undefined),
+        ])
+        setRecentTransactions(txRes.data.filter((t) => t.type === "IN").slice(0, 10))
+        if (partsRes) setParts(partsRes.data)
+      } catch {
+        // Silent — data refresh failure shouldn't override the successful stock-in message
+      }
     } catch {
       toast.error("Failed to record stock in")
     } finally {
@@ -272,6 +276,15 @@ export function StockInPage() {
                 ))}
               </div>
             )}
+            <div className="mt-3 pt-3 border-t">
+              <a
+                href="/stock/in/transactions"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                View All
+              </a>
+            </div>
           </CardContent>
         </Card>
       </div>

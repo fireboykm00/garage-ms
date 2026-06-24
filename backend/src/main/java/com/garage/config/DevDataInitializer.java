@@ -59,21 +59,19 @@ public class DevDataInitializer implements CommandLineRunner {
     private void loadDevParts() {
         if (partRepository.count() > 0) return;
 
-        Stock headQ = stockRepository.findByName("HEAD Q").orElse(null);
-        Stock h1 = stockRepository.findByName("H1").orElse(null);
-        Stock h2 = stockRepository.findByName("H2").orElse(null);
-        Stock h4 = stockRepository.findByName("H4").orElse(null);
+        Stock stockA = stockRepository.findByName("Stock A").orElse(null);
+        Stock stockB = stockRepository.findByName("Stock B").orElse(null);
 
-        if (headQ == null) {
+        if (stockA == null) {
             log.warning("Stocks not initialized yet, skipping dev parts");
             return;
         }
 
-        partRepository.save(new Part("04152-31090", "Oil Filter", "Rav4", "TOYOTA", "pcs", 50, 5, h1));
-        partRepository.save(new Part("23390-0L070", "Fuel Filter", "Hilux Revo", "TOYOTA", "pcs", 50, 5, h1));
-        partRepository.save(new Part("17801-0L040", "Air Filter", "Hilux Revo", "TOYOTA", "pcs", 50, 5, h4));
-        partRepository.save(new Part("47201-0K590", "Brake Master Cylinder", "Hilux Vigo", "TOYOTA", "pcs", 50, 5, h2));
-        partRepository.save(new Part("212-11AKL", "Head Lamp-Left", "Hilux Revo", "TOYOTA", "pcs", 50, 5, headQ));
+        partRepository.save(new Part("04152-31090", "Oil Filter", "Rav4", "TOYOTA", "pcs", 50, 5, stockA));
+        partRepository.save(new Part("23390-0L070", "Fuel Filter", "Hilux Revo", "TOYOTA", "pcs", 50, 5, stockA));
+        partRepository.save(new Part("17801-0L040", "Air Filter", "Hilux Revo", "TOYOTA", "pcs", 50, 5, stockA));
+        partRepository.save(new Part("47201-0K590", "Brake Master Cylinder", "Hilux Vigo", "TOYOTA", "pcs", 50, 5, stockB));
+        partRepository.save(new Part("212-11AKL", "Head Lamp-Left", "Hilux Revo", "TOYOTA", "pcs", 50, 5, stockB));
 
         log.info("5 dev sample parts created");
     }

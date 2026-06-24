@@ -1,7 +1,9 @@
 package com.garage.controller;
 
+import com.garage.dto.report.AggregatedStockInReport;
 import com.garage.dto.report.AggregatedStockOutReport;
 import com.garage.dto.report.RemainingStockResponse;
+import com.garage.dto.report.StockInReportResponse;
 import com.garage.dto.report.StockOutReportResponse;
 import com.garage.service.ReportService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,16 @@ public class ReportController {
     @GetMapping("/stock-out/aggregated")
     public ResponseEntity<List<AggregatedStockOutReport>> getAggregatedStockOutReport() {
         return ResponseEntity.ok(reportService.getAggregatedStockOutReport());
+    }
+
+    @GetMapping("/stock-in")
+    public ResponseEntity<List<StockInReportResponse>> getStockInReport() {
+        return ResponseEntity.ok(reportService.getStockInReport());
+    }
+
+    @GetMapping("/stock-in/aggregated")
+    public ResponseEntity<List<AggregatedStockInReport>> getAggregatedStockInReport() {
+        return ResponseEntity.ok(reportService.getAggregatedStockInReport());
     }
 
     @GetMapping("/remaining-stock")

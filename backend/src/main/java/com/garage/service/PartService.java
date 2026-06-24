@@ -2,6 +2,7 @@ package com.garage.service;
 
 import com.garage.dto.part.PartRequest;
 import com.garage.dto.part.PartResponse;
+import com.garage.exception.DuplicateFieldException;
 import com.garage.exception.ResourceNotFoundException;
 import com.garage.model.Part;
 import com.garage.model.Stock;
@@ -45,6 +46,9 @@ public class PartService {
     public PartResponse createPart(PartRequest request) {
         Stock stock = stockRepository.findById(request.getStockId())
                 .orElseThrow(() -> new ResourceNotFoundException("Stock not found with id: " + request.getStockId()));
+        if (partRepository.existsByPartNumber(request.getPartNumber())) {
+            throw new DuplicateFieldException("partNumber", "Part number already exists");
+        }
         Part part = new Part(request.getPartNumber(), request.getName(), request.getModel(),
                 request.getManufacturer(), request.getUnit(), request.getCurrentQuantity(),
                 request.getMinimumQuantity(), stock);
@@ -57,6 +61,9 @@ public class PartService {
     public PartResponse updatePart(Long id, PartRequest request) {
         Part part = partRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Part not found with id: " + id));
+        if (partRepository.existsByPartNumber(request.getPartNumber()) && !request.getPartNumber().equals(part.getPartNumber())) {
+            throw new DuplicateFieldException("partNumber", "Part number already exists");
+        }
         Stock stock = stockRepository.findById(request.getStockId())
                 .orElseThrow(() -> new ResourceNotFoundException("Stock not found with id: " + request.getStockId()));
         part.setPartNumber(request.getPartNumber());

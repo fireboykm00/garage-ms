@@ -1,6 +1,7 @@
 package com.garage.controller;
 
 import com.garage.dto.job.AddPartRequest;
+import com.garage.dto.job.ReplacePartRequest;
 import com.garage.dto.job.JobCardEventResponse;
 import com.garage.dto.job.JobCardPartResponse;
 import com.garage.dto.job.JobCardRequest;
@@ -96,6 +97,26 @@ public class JobCardController {
     @GetMapping("/{id}/parts")
     public ResponseEntity<List<JobCardPartResponse>> getParts(@PathVariable Long id) {
         return ResponseEntity.ok(jobCardService.getParts(id));
+    }
+
+    @DeleteMapping("/{jobCardId}/parts/{jobCardPartId}")
+    public ResponseEntity<Void> removePart(
+            @PathVariable Long jobCardId,
+            @PathVariable Long jobCardPartId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User user = authService.getCurrentUserInfo();
+        jobCardService.removePart(jobCardId, jobCardPartId, user);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{jobCardId}/parts/{jobCardPartId}")
+    public ResponseEntity<JobCardPartResponse> replacePart(
+            @PathVariable Long jobCardId,
+            @PathVariable Long jobCardPartId,
+            @Valid @RequestBody ReplacePartRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User user = authService.getCurrentUserInfo();
+        return ResponseEntity.ok(jobCardService.replacePart(jobCardId, jobCardPartId, request, user));
     }
 
     @GetMapping("/{id}/events")

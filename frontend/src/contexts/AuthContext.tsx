@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .getMe()
       .then((res) => setUser(res.data))
       .catch(() => {
+        toast.error("Session expired. Please log in again.")
         localStorage.removeItem("token")
         localStorage.removeItem("user")
         setToken(null)

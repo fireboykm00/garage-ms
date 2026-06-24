@@ -4,7 +4,7 @@ import { partService } from "@/services/partService"
 import {
   LayoutDashboard, Package, ArrowDownToLine,
   FileText, ClipboardList, Users, Menu, X, LogOut, ChevronDown,
-  Wrench, PlusCircle, Search
+  Wrench, PlusCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -67,6 +67,9 @@ export function Sidebar() {
         ...((isAdmin || isStorekeeper)
           ? [{ to: "/stock/in", label: "Stock In", icon: ArrowDownToLine }]
           : []),
+        ...((isAdmin || isStorekeeper)
+          ? [{ to: "/parts/new", label: "Add Part", icon: PlusCircle }]
+          : []),
       ],
     },
     {
@@ -118,9 +121,6 @@ export function Sidebar() {
           <span>Garage</span>
         </div>
         <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)}>
-            <Search className="h-5 w-5" />
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full">

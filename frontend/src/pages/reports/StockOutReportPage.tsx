@@ -4,7 +4,7 @@ import type { AggregatedStockOutReport } from "@/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ChevronDown, ChevronRight, FileText, Download, Search, BarChart3 } from "lucide-react"
+import { FileText, Download, Search, BarChart3 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
@@ -17,10 +17,10 @@ export function StockOutReportPage() {
   const [reports, setReports] = useState<AggregatedStockOutReport[]>([])
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [dateFilterApplied, setDateFilterApplied] = useState(false)
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     reportService.getAggregatedStockOutReport()
@@ -28,22 +28,6 @@ export function StockOutReportPage() {
       .catch(() => toast.error("Failed to load report"))
       .finally(() => setLoading(false))
   }, [])
-
-  const toggleDate = (date: string) => {
-    setExpandedDates((prev) => {
-      const next = new Set(prev)
-      if (next.has(date)) next.delete(date)
-      else next.add(date)
-      return next
-    })
-  }
-
-  // Expand all by default on first load
-  useEffect(() => {
-    if (reports.length > 0 && expandedDates.size === 0) {
-      setExpandedDates(new Set(reports.map((r) => r.date)))
-    }
-  }, [reports, expandedDates.size])
 
   const dateFiltered = useMemo(() => {
     if (!dateFilterApplied || (!startDate && !endDate)) return reports
@@ -87,12 +71,18 @@ export function StockOutReportPage() {
   }
 
   const downloadExcel = async () => {
-    const wb = new ExcelJS.Workbook()
-    const ws = wb.addWorksheet("Stock Out (Aggregated)")
+    setDownloading(true)
+    try {
+      const wb = new ExcelJS.Workbook()
+      const ws = wb.addWorksheet("Stock Out (Aggregated)")
 
     ws.mergeCells(1, 1, 1, 4)
     const titleRow = ws.getRow(1)
-    titleRow.getCell(1).value = "GARAGE INVENTORY — Aggregated Stock Out Report"
+    let titleText = "GARAGE INVENTORY — Aggregated Stock Out Report"
+    if (dateFilterApplied && (startDate || endDate)) {
+      titleText += ` (Filtered: ${startDate || "..."} — ${endDate || "..."})`
+    }
+    titleRow.getCell(1).value = titleText
     titleRow.getCell(1).font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } }
     titleRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" }
     titleRow.height = 40
@@ -114,8 +104,15 @@ export function StockOutReportPage() {
     }
     headerRow.height = 28
 
+    ws.autoFilter = {
+      from: { row: headerRow.number, column: 1 },
+      to: { row: headerRow.number, column: 4 }
+    }
+
+    let dataRowNum = 0
     filtered.forEach((day) => {
       day.entries.forEach((entry) => {
+        dataRowNum++
         const row = ws.addRow([
           formatDate(day.date), entry.partNumber, entry.partName, entry.totalQuantity
         ])
@@ -127,6 +124,14 @@ export function StockOutReportPage() {
           }
           cell.font = { size: 11 }
         })
+        row.getCell(4).font = { bold: true, size: 11 }
+        row.getCell(4).alignment = { horizontal: "right", vertical: "middle" }
+        row.getCell(4).numFmt = '#,##0'
+        if (dataRowNum % 2 === 0) {
+          row.eachCell((cell) => {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8F9FA" } }
+          })
+        }
       })
       // Daily total row
       const totalRow = ws.addRow([`Total for ${formatDate(day.date)}`, "", "", day.dailyTotal])
@@ -139,15 +144,32 @@ export function StockOutReportPage() {
       })
     })
 
+    const grandTotalRow = ws.addRow(["GRAND TOTAL", "", "", overallTotal])
+    grandTotalRow.eachCell((cell) => {
+      cell.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } }
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1a365d" } }
+      cell.border = {
+        top: { style: "thin" }, left: { style: "thin" },
+        bottom: { style: "thin" }, right: { style: "thin" }
+      }
+      cell.alignment = { horizontal: "center", vertical: "middle" }
+    })
+
     const colWidths = [22, 22, 38, 14]
     colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w })
 
+    ws.views = [{ state: "frozen", ySplit: 2 }]
     const buf = await wb.xlsx.writeBuffer()
     const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url; a.download = "stock-out-report-aggregated.xlsx"; a.click()
     URL.revokeObjectURL(url)
+    } catch {
+      toast.error("Failed to generate report")
+    } finally {
+      setDownloading(false)
+    }
   }
 
   const applyDateFilter = () => setDateFilterApplied(true)
@@ -167,8 +189,8 @@ export function StockOutReportPage() {
             <FileText className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold tracking-tight">Stock Out Report</h1>
           </div>
-          <Button variant="outline" onClick={downloadExcel}>
-            <Download className="mr-1 h-4 w-4" /> XLSX
+          <Button variant="outline" onClick={downloadExcel} disabled={downloading}>
+            <Download className="mr-1 h-4 w-4" /> {downloading ? "Exporting..." : "Export Report"}
           </Button>
         </div>
       </div>
@@ -233,47 +255,38 @@ export function StockOutReportPage() {
               {/* Grouped by date */}
               <div className="space-y-4">
                 {filtered.map((day) => {
-                  const isExpanded = expandedDates.has(day.date)
                   return (
                     <div key={day.date} className="rounded-lg border">
-                      {/* Date header — clickable to expand/collapse */}
-                      <button
-                        type="button"
-                        onClick={() => toggleDate(day.date)}
-                        className="flex w-full items-center justify-between bg-muted/30 px-4 py-3 text-left hover:bg-muted/50 transition-colors"
-                      >
+                      {/* Date header */}
+                      <div className="flex w-full items-center justify-between bg-muted/30 px-4 py-3">
                         <div className="flex items-center gap-2">
-                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           <span className="font-semibold">{formatDate(day.date)}</span>
                           <Badge variant="secondary" className="ml-2 text-xs">
                             {day.entries.length} part{day.entries.length !== 1 ? "s" : ""}
                           </Badge>
                         </div>
                         <span className="font-medium text-sm">Total: {day.dailyTotal}</span>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b text-left text-muted-foreground bg-muted/20">
-                                <th className="px-4 py-2 font-medium text-xs">Part Number</th>
-                                <th className="px-4 py-2 font-medium text-xs">Description</th>
-                                <th className="px-4 py-2 font-medium text-xs text-right">Qty Removed</th>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b text-left text-muted-foreground bg-muted/20">
+                              <th className="px-4 py-2 font-medium text-xs">Part Number</th>
+                              <th className="px-4 py-2 font-medium text-xs">Description</th>
+                              <th className="px-4 py-2 font-medium text-xs text-right">Qty Removed</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {day.entries.map((entry) => (
+                              <tr key={`${day.date}-${entry.partNumber}`} className="border-b last:border-0 hover:bg-muted/30">
+                                <td className="px-4 py-2 font-mono text-xs">{entry.partNumber}</td>
+                                <td className="px-4 py-2">{entry.partName}</td>
+                                <td className="px-4 py-2 text-right font-medium">{entry.totalQuantity}</td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {day.entries.map((entry) => (
-                                <tr key={`${day.date}-${entry.partNumber}`} className="border-b last:border-0 hover:bg-muted/30">
-                                  <td className="px-4 py-2 font-mono text-xs">{entry.partNumber}</td>
-                                  <td className="px-4 py-2">{entry.partName}</td>
-                                  <td className="px-4 py-2 text-right font-medium">{entry.totalQuantity}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )
                 })}

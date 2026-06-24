@@ -40,11 +40,12 @@ import {
 } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useAuth } from "@/contexts/AuthContext"
-import { Plus, Trash2, Users, Search, Edit, Clock } from "lucide-react"
+import { Plus, Trash2, Users, Search, Edit, Clock, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import type { User, UserRole } from "@/types"
 import { useDocumentTitle } from "@/hooks/useDocumentTitle"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
+import axios from "axios"
 
 export function AdminUsersPage() {
   useDocumentTitle("Users")
@@ -52,11 +53,16 @@ export function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [search, setSearch] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogUser, setDeleteDialogUser] = useState<User | null>(null)
   const [deleteConfirmText, setDeleteConfirmText] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [savingUpdate, setSavingUpdate] = useState(false)
+  const [savingDelete, setSavingDelete] = useState(false)
+  const [createFieldErrors, setCreateFieldErrors] = useState<Record<string, string>>({})
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -74,8 +80,10 @@ export function AdminUsersPage() {
     try {
       const res = await userService.getAll()
       setUsers(res.data)
+      setLoadError(false)
     } catch {
       toast.error("Failed to load users")
+      setLoadError(true)
     } finally {
       setIsLoading(false)
     }
@@ -95,6 +103,7 @@ export function AdminUsersPage() {
 
   const openCreate = () => {
     setEditingUser(null)
+    setCreateFieldErrors({})
     setFormData({
       username: "",
       email: "",
@@ -119,19 +128,36 @@ export function AdminUsersPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSaving(true)
     try {
       await userService.create(formData)
       toast.success("User created")
       setDialogOpen(false)
       loadUsers()
-    } catch {
-      toast.error("Failed to create user")
+    } catch (err: unknown) {
+      const knownFieldNames = ["username", "email", "fullName", "password"];
+      if (axios.isAxiosError(err) && err.response?.data) {
+        const data = err.response.data as Record<string, string>;
+        const hasFieldErrors = Object.keys(data).some((k) => knownFieldNames.includes(k));
+        if (hasFieldErrors) {
+          setCreateFieldErrors(data);
+        } else if (data.message) {
+          toast.error(data.message);
+        } else {
+          toast.error("Failed to create user");
+        }
+      } else {
+        toast.error("Failed to create user");
+      }
+    } finally {
+      setSaving(false)
     }
   }
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingUser) return
+    setSavingUpdate(true)
     try {
       await userService.updateRole(editingUser.id, formData.role)
       toast.success("User updated")
@@ -139,11 +165,14 @@ export function AdminUsersPage() {
       loadUsers()
     } catch {
       toast.error("Failed to update user")
+    } finally {
+      setSavingUpdate(false)
     }
   }
 
   const handleDelete = async () => {
     if (!deleteDialogUser) return
+    setSavingDelete(true)
     try {
       await userService.delete(deleteDialogUser.id)
       toast.success("User deleted")
@@ -152,6 +181,8 @@ export function AdminUsersPage() {
       loadUsers()
     } catch {
       toast.error("Failed to delete user")
+    } finally {
+      setSavingDelete(false)
     }
   }
 
@@ -208,7 +239,7 @@ export function AdminUsersPage() {
           <Users className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold tracking-tight">Users</h1>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) setCreateFieldErrors({}); setDialogOpen(open); }}>
           <DialogTrigger asChild>
             <Button onClick={openCreate}>
               <Plus className="h-4 w-4 mr-2" />
@@ -222,19 +253,23 @@ export function AdminUsersPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="username">Username *</Label>
-                <Input id="username" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} required placeholder="Username" />
+                <Input id="username" value={formData.username} onChange={(e) => { setFormData({ ...formData, username: e.target.value }); setCreateFieldErrors((prev) => { const next = { ...prev }; delete next.username; return next; }); }} required placeholder="Username" className={createFieldErrors.username ? "border-destructive" : ""} />
+                {createFieldErrors.username && <p className="text-xs text-destructive">{createFieldErrors.username}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
-                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required placeholder="Email" />
+                <Input id="email" type="email" value={formData.email} onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setCreateFieldErrors((prev) => { const next = { ...prev }; delete next.email; return next; }); }} required placeholder="Email" className={createFieldErrors.email ? "border-destructive" : ""} />
+                {createFieldErrors.email && <p className="text-xs text-destructive">{createFieldErrors.email}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name *</Label>
-                <Input id="fullName" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} required placeholder="Full name" />
+                <Input id="fullName" value={formData.fullName} onChange={(e) => { setFormData({ ...formData, fullName: e.target.value }); setCreateFieldErrors((prev) => { const next = { ...prev }; delete next.fullName; return next; }); }} required placeholder="Full name" className={createFieldErrors.fullName ? "border-destructive" : ""} />
+                {createFieldErrors.fullName && <p className="text-xs text-destructive">{createFieldErrors.fullName}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password *</Label>
-                <Input id="password" type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required placeholder="Password" />
+                <Input id="password" type="password" value={formData.password} onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setCreateFieldErrors((prev) => { const next = { ...prev }; delete next.password; return next; }); }} required placeholder="Password" className={createFieldErrors.password ? "border-destructive" : ""} />
+                {createFieldErrors.password && <p className="text-xs text-destructive">{createFieldErrors.password}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>
@@ -251,12 +286,22 @@ export function AdminUsersPage() {
               </div>
               <div className="flex gap-4 justify-end">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button type="submit">Create</Button>
+                <Button type="submit" disabled={saving}>{saving ? "Creating..." : "Create"}</Button>
               </div>
             </form>
           </DialogContent>
         </Dialog>
       </div>
+
+      {loadError && (
+        <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="flex-1">Failed to load users</span>
+          <Button variant="outline" size="sm" onClick={loadUsers}>
+            Retry
+          </Button>
+        </div>
+      )}
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -294,7 +339,7 @@ export function AdminUsersPage() {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4 pt-3 border-t">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(user)}>
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(user)} disabled={user.id === currentUser?.id}>
                     <Edit className="h-3 w-3 mr-1" /> Edit
                   </Button>
                   <AlertDialog
@@ -333,11 +378,11 @@ export function AdminUsersPage() {
                           Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction
-                          disabled={deleteConfirmText !== user.username}
+                          disabled={deleteConfirmText !== user.username || savingDelete}
                           onClick={handleDelete}
                           className="bg-destructive"
                         >
-                          Delete
+                          {savingDelete ? "Deleting..." : "Delete"}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -383,7 +428,7 @@ export function AdminUsersPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(user)}>
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(user)} disabled={user.id === currentUser?.id}>
                             <Edit className="h-4 w-4" />
                           </Button>
                           <AlertDialog
@@ -417,11 +462,11 @@ export function AdminUsersPage() {
                                   Cancel
                                 </AlertDialogCancel>
                                 <AlertDialogAction
-                                  disabled={deleteConfirmText !== user.username}
+                                  disabled={deleteConfirmText !== user.username || savingDelete}
                                   onClick={handleDelete}
                                   className="bg-destructive"
                                 >
-                                  Delete
+                                  {savingDelete ? "Deleting..." : "Delete"}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -467,7 +512,7 @@ export function AdminUsersPage() {
             </div>
             <div className="flex gap-4 justify-end">
               <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-              <Button type="submit">Save</Button>
+              <Button type="submit" disabled={savingUpdate}>{savingUpdate ? "Saving..." : "Save"}</Button>
             </div>
           </form>
         </DialogContent>

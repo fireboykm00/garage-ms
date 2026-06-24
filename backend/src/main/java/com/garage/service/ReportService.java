@@ -1,8 +1,11 @@
 package com.garage.service;
 
+import com.garage.dto.report.AggregatedStockInEntry;
+import com.garage.dto.report.AggregatedStockInReport;
 import com.garage.dto.report.AggregatedStockOutReport;
 import com.garage.dto.report.AggregatedStockOutEntry;
 import com.garage.dto.report.RemainingStockResponse;
+import com.garage.dto.report.StockInReportResponse;
 import com.garage.dto.report.StockOutReportResponse;
 import com.garage.model.enums.TransactionType;
 import com.garage.repository.PartRepository;
@@ -41,6 +44,21 @@ public class ReportService {
                          TreeMap::new, Collectors.toList()));
         return grouped.entrySet().stream()
                 .map(e -> new AggregatedStockOutReport(e.getKey(), e.getValue()))
+                .toList();
+    }
+
+    public List<StockInReportResponse> getStockInReport() {
+        return stockTransactionRepository.findByTypeOrderByCreatedAtDesc(TransactionType.IN).stream()
+                .map(StockInReportResponse::fromEntity).toList();
+    }
+
+    public List<AggregatedStockInReport> getAggregatedStockInReport() {
+        List<AggregatedStockInEntry> entries = stockTransactionRepository.findAggregatedStockInReport();
+        Map<java.time.LocalDate, List<AggregatedStockInEntry>> grouped = entries.stream()
+                .collect(Collectors.groupingBy(AggregatedStockInEntry::getDate,
+                         TreeMap::new, Collectors.toList()));
+        return grouped.entrySet().stream()
+                .map(e -> new AggregatedStockInReport(e.getKey(), e.getValue()))
                 .toList();
     }
 

@@ -50,4 +50,9 @@ public class StockTransactionController {
     public ResponseEntity<List<StockTransactionResponse>> getRecentTransactions() {
         return ResponseEntity.ok(stockTransactionService.getRecentTransactions());
     }
+
+    @GetMapping("/transactions/in")
+    public ResponseEntity<List<StockTransactionResponse>> getAllStockInTransactions() {
+        return ResponseEntity.ok(stockTransactionService.getAllStockInTransactions());
+    }
 }

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Wrench, AlertCircle } from "lucide-react"
+import { AxiosError } from "axios"
 
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth()
@@ -14,6 +15,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<{ username?: string; password?: string }>({})
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />
@@ -22,16 +24,30 @@ export function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+
+    // Client-side field validation
+    const errors: { username?: string; password?: string } = {}
+    if (!username.trim()) errors.username = "Username is required"
+    if (!password.trim()) errors.password = "Password is required"
+    setFieldErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
     setLoading(true)
     try {
       await login({ username, password })
       navigate("/dashboard")
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } }
-      if (axiosError.response?.data?.error) {
-        setError(axiosError.response.data.error)
-      } else {
+      if (err instanceof AxiosError && err.response?.data?.message) {
+        const msg = err.response.data.message as string
+        if (msg.toLowerCase().includes("bad credentials") || msg.toLowerCase().includes("invalid credentials")) {
+          setError("Invalid username or password")
+        } else {
+          setError(msg)
+        }
+      } else if (err instanceof AxiosError && !err.response) {
         setError("Connection failed. Make sure the server is running.")
+      } else {
+        setError("An unexpected error occurred")
       }
     } finally {
       setLoading(false)
@@ -41,6 +57,7 @@ export function LoginPage() {
   const fillDemo = (user: string, pass: string) => {
     setUsername(user)
     setPassword(pass)
+    setFieldErrors({})
   }
 
   return (
@@ -63,11 +80,21 @@ export function LoginPage() {
             )}
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
-              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+              <Input id="username" value={username}
+                onChange={(e) => { setUsername(e.target.value); setFieldErrors((prev) => ({ ...prev, username: undefined })) }}
+                required className={fieldErrors.username ? "border-destructive" : ""} />
+              {fieldErrors.username && (
+                <p className="text-xs text-destructive">{fieldErrors.username}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input id="password" type="password" value={password}
+                onChange={(e) => { setPassword(e.target.value); setFieldErrors((prev) => ({ ...prev, password: undefined })) }}
+                required className={fieldErrors.password ? "border-destructive" : ""} />
+              {fieldErrors.password && (
+                <p className="text-xs text-destructive">{fieldErrors.password}</p>
+              )}
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}

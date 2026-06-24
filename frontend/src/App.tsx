@@ -10,6 +10,7 @@ import { JobCardListPage } from "@/pages/jobs/JobCardListPage"
 import { JobCardFormPage } from "@/pages/jobs/JobCardFormPage"
 import { JobCardDetailPage } from "@/pages/jobs/JobCardDetailPage"
 import { StockInPage } from "@/pages/stock/StockInPage"
+import { StockInTransactionsPage } from "@/pages/stock/StockInTransactionsPage"
 import { StockOutPage } from "@/pages/stock/StockOutPage"
 import { StockOutReportPage } from "@/pages/reports/StockOutReportPage"
 import { RemainingStockReportPage } from "@/pages/reports/RemainingStockReportPage"
@@ -45,6 +46,7 @@ function AppRoutes() {
         <Route path="/parts/:id/edit" element={<PartFormPage />} />
 
         <Route path="/stock/in" element={<StockInPage />} />
+        <Route path="/stock/in/transactions" element={<StockInTransactionsPage />} />
         <Route path="/stock/out" element={<AdminRoute><StockOutPage /></AdminRoute>} />
         <Route path="/reports/stock-out" element={<StockOutReportPage />} />
         <Route path="/reports/remaining-stock" element={<RemainingStockReportPage />} />

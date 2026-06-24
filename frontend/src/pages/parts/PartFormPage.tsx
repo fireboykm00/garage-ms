@@ -8,19 +8,23 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Package, ArrowLeft } from "lucide-react"
+import { Package, ArrowLeft, Lock } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { useDocumentTitle } from "@/hooks/useDocumentTitle"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
+import { AxiosError } from "axios"
+import { ApiError } from "@/lib/api"
 
 export function PartFormPage() {
   const { id, stockId } = useParams()
   const navigate = useNavigate()
   const isEdit = !!id
+  const isStockLocked = !!stockId && !isEdit
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [stocks, setStocks] = useState<Stock[]>([])
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<PartRequest>({
     partNumber: "",
     ourPartNumber: "",
@@ -40,7 +44,7 @@ export function PartFormPage() {
     stockService.getAll()
       .then((res) => {
         setStocks(res.data)
-        // Pre-select stock if coming from stock detail page
+        // Pre-select and lock stock if coming from stock detail page
         if (stockId && res.data.length > 0) {
           const sid = Number(stockId)
           if (res.data.some((s) => s.id === sid)) {
@@ -74,10 +78,15 @@ export function PartFormPage() {
     }
   }, [id, isEdit])
 
+  const lockedStockName = isStockLocked
+    ? stocks.find((s) => s.id === Number(stockId))?.name
+    : undefined
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.stockId) { toast.error("Select a stock"); return }
     setSaving(true)
+    setFieldErrors({})
     try {
       if (isEdit) {
         await partService.update(Number(id), form)
@@ -92,19 +101,42 @@ export function PartFormPage() {
       } else {
         navigate("/stocks")
       }
-    } catch {
-      toast.error(isEdit ? "Failed to update part" : "Failed to create part")
+    } catch (err: unknown) {
+      const knownFieldNames = ["partNumber", "ourPartNumber", "name", "model", "manufacturer", "unit", "stockId", "currentQuantity", "minimumQuantity"];
+      if (err instanceof AxiosError && err.response?.data) {
+        const data = err.response.data as Record<string, string>;
+        const hasFieldErrors = Object.keys(data).some((k) => knownFieldNames.includes(k));
+        if (hasFieldErrors) {
+          setFieldErrors(data);
+        } else if (data.message) {
+          toast.error(data.message);
+        } else {
+          toast.error(isEdit ? "Failed to update part" : "Failed to create part");
+        }
+      } else {
+        const errMsg = err instanceof ApiError ? err.message : (isEdit ? "Failed to update part" : "Failed to create part");
+        toast.error(errMsg);
+      }
     } finally {
       setSaving(false)
     }
   }
 
-  const update = (field: keyof PartRequest, value: string | number) =>
+  const update = (field: keyof PartRequest, value: string | number) => {
     setForm((prev) => ({ ...prev, [field]: value }))
+    // Clear field error when user types
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev }
+        delete next[field]
+        return next
+      })
+    }
+  }
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-lg space-y-6">
+      <div className="space-y-6">
         <Breadcrumbs segments={[{ label: "Stocks", href: "/stocks" }, { label: "Edit Part" }]} />
         <div className="flex items-center gap-2">
           <Skeleton className="h-9 w-9 rounded-md" />
@@ -131,9 +163,12 @@ export function PartFormPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="space-y-6">
       <Breadcrumbs segments={[
         { label: "Stocks", href: "/stocks" },
+        ...(isStockLocked && lockedStockName
+          ? [{ label: lockedStockName, href: `/stocks/${stockId}/parts` }]
+          : []),
         { label: isEdit ? "Edit Part" : "Add Part" }
       ]} />
 
@@ -156,35 +191,49 @@ export function PartFormPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="partNumber">Part Number *</Label>
-                <Input id="partNumber" value={form.partNumber} onChange={(e) => update("partNumber", e.target.value)} required placeholder="e.g., 03H115562" />
+                <Input id="partNumber" value={form.partNumber} onChange={(e) => update("partNumber", e.target.value)} required placeholder="e.g., 03H115562"
+                  className={fieldErrors.partNumber ? "border-destructive" : ""} />
+                {fieldErrors.partNumber && <p className="text-xs text-destructive">{fieldErrors.partNumber}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="ourPartNumber">Our Part Number</Label>
-                <Input id="ourPartNumber" value={form.ourPartNumber || ""} onChange={(e) => update("ourPartNumber", e.target.value)} placeholder="e.g., PLT-31400" />
+                <Input id="ourPartNumber" value={form.ourPartNumber || ""} onChange={(e) => update("ourPartNumber", e.target.value)} placeholder="e.g., PLT-31400"
+                  className={fieldErrors.ourPartNumber ? "border-destructive" : ""} />
+                {fieldErrors.ourPartNumber && <p className="text-xs text-destructive">{fieldErrors.ourPartNumber}</p>}
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="name">Description *</Label>
-              <Input id="name" value={form.name} onChange={(e) => update("name", e.target.value)} required placeholder="e.g., Oil Filter" />
+              <Input id="name" value={form.name} onChange={(e) => update("name", e.target.value)} required placeholder="e.g., Oil Filter"
+                className={fieldErrors.name ? "border-destructive" : ""} />
+              {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="model">Model</Label>
-                <Input id="model" value={form.model || ""} onChange={(e) => update("model", e.target.value)} placeholder="e.g., Amarok, Hilux Revo" />
+                <Input id="model" value={form.model || ""} onChange={(e) => update("model", e.target.value)} placeholder="e.g., Amarok, Hilux Revo"
+                  className={fieldErrors.model ? "border-destructive" : ""} />
+                {fieldErrors.model && <p className="text-xs text-destructive">{fieldErrors.model}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="manufacturer">Manufacturer</Label>
-                <Input id="manufacturer" value={form.manufacturer || ""} onChange={(e) => update("manufacturer", e.target.value)} placeholder="e.g., TOYOTA, SUZUKI" />
+                <Input id="manufacturer" value={form.manufacturer || ""} onChange={(e) => update("manufacturer", e.target.value)} placeholder="e.g., TOYOTA, SUZUKI"
+                  className={fieldErrors.manufacturer ? "border-destructive" : ""} />
+                {fieldErrors.manufacturer && <p className="text-xs text-destructive">{fieldErrors.manufacturer}</p>}
               </div>
             </div>
-            {/* Stock dropdown */}
+            {/* Stock dropdown — locked when coming from stock detail page */}
             <div className="space-y-2">
-              <Label htmlFor="stock">Stock *</Label>
+              <Label htmlFor="stock">
+                Stock *
+                {isStockLocked && <Lock className="ml-1 inline h-3 w-3 text-muted-foreground" />}
+              </Label>
               <Select
                 value={form.stockId ? String(form.stockId) : ""}
                 onValueChange={(v) => update("stockId", Number(v))}
+                disabled={isStockLocked}
               >
-                <SelectTrigger>
+                <SelectTrigger disabled={isStockLocked}>
                   <SelectValue placeholder="Select a stock" />
                 </SelectTrigger>
                 <SelectContent>
@@ -200,6 +249,12 @@ export function PartFormPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {fieldErrors.stockId && <p className="text-xs text-destructive">{fieldErrors.stockId}</p>}
+              {isStockLocked && (
+                <p className="text-xs text-muted-foreground">
+                  Part will be added to {lockedStockName || "this stock"}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="unit">Unit</Label>
@@ -213,15 +268,20 @@ export function PartFormPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {fieldErrors.unit && <p className="text-xs text-destructive">{fieldErrors.unit}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="currentQuantity">Current Quantity</Label>
-                <Input id="currentQuantity" type="number" min="0" value={form.currentQuantity} onChange={(e) => update("currentQuantity", parseInt(e.target.value) || 0)} />
+                <Input id="currentQuantity" type="number" min="0" value={form.currentQuantity} onChange={(e) => update("currentQuantity", parseInt(e.target.value) || 0)}
+                  className={fieldErrors.currentQuantity ? "border-destructive" : ""} />
+                {fieldErrors.currentQuantity && <p className="text-xs text-destructive">{fieldErrors.currentQuantity}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="minimumQuantity">Minimum Quantity</Label>
-                <Input id="minimumQuantity" type="number" min="0" value={form.minimumQuantity} onChange={(e) => update("minimumQuantity", parseInt(e.target.value) || 0)} />
+                <Input id="minimumQuantity" type="number" min="0" value={form.minimumQuantity} onChange={(e) => update("minimumQuantity", parseInt(e.target.value) || 0)}
+                  className={fieldErrors.minimumQuantity ? "border-destructive" : ""} />
+                {fieldErrors.minimumQuantity && <p className="text-xs text-destructive">{fieldErrors.minimumQuantity}</p>}
               </div>
             </div>
             <div className="flex gap-3 pt-2">

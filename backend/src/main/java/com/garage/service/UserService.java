@@ -3,6 +3,7 @@ package com.garage.service;
 import com.garage.dto.auth.CreateUserRequest;
 import com.garage.dto.response.UserResponse;
 import com.garage.exception.BadRequestException;
+import com.garage.exception.DuplicateFieldException;
 import com.garage.model.User;
 import com.garage.model.enums.UserRole;
 import com.garage.repository.UserRepository;
@@ -25,10 +26,10 @@ public class UserService {
     @Transactional
     public UserResponse createUser(CreateUserRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new BadRequestException("Username already exists");
+            throw new DuplicateFieldException("username", "Username already exists");
         }
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email already exists");
+            throw new DuplicateFieldException("email", "Email already exists");
         }
         UserRole role = request.getRole() != null ? request.getRole() : UserRole.ROLE_STOREKEEPER;
         User user = new User(request.getUsername(), request.getEmail(), request.getPassword(), request.getFullName(), role);

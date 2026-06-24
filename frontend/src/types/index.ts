@@ -35,6 +35,8 @@ export interface MessageResponse {
   message: string
 }
 
+export type FieldValidationErrors = Record<string, string>
+
 export interface ApiError {
   error: string
   details?: Record<string, string>
@@ -149,6 +151,29 @@ export interface AggregatedStockOutReport {
   dailyTotal: number
 }
 
+export interface AggregatedStockInEntry {
+  partNumber: string
+  partName: string
+  totalQuantity: number
+  date: string
+}
+
+export interface AggregatedStockInReport {
+  date: string
+  entries: AggregatedStockInEntry[]
+  dailyTotal: number
+}
+
+export interface StockInReport {
+  id: number
+  partNumber: string
+  partName: string
+  quantity: number
+  note: string
+  createdByName: string
+  createdAt: string
+}
+
 export type UserRole = "ROLE_ADMIN" | "ROLE_STOREKEEPER" | "ROLE_MECHANIC" | "ROLE_RECEPTIONIST"
 
 export type JobCardStatus = "OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
@@ -190,5 +215,10 @@ export interface JobCardPart {
 
 export interface AddPartRequest {
   partId: number
+  quantity: number
+}
+
+export interface ReplacePartRequest {
+  newPartId: number
   quantity: number
 }

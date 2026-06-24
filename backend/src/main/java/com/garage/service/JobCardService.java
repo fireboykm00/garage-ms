@@ -1,10 +1,12 @@
 package com.garage.service;
 
 import com.garage.dto.job.AddPartRequest;
+import com.garage.dto.job.ReplacePartRequest;
 import com.garage.dto.job.JobCardPartResponse;
 import com.garage.dto.job.JobCardRequest;
 import com.garage.dto.job.JobCardResponse;
 import com.garage.exception.BadRequestException;
+import com.garage.exception.DuplicateFieldException;
 import com.garage.exception.ResourceNotFoundException;
 import com.garage.model.JobCard;
 import com.garage.model.JobCardEvent;
@@ -58,6 +60,15 @@ public class JobCardService {
     @Transactional
     public JobCardResponse createJobCard(JobCardRequest request, User user) {
         String jobNumber = generateJobNumber();
+        // Safety check for race conditions on job_number
+        int retries = 0;
+        while (jobCardRepository.existsByJobNumber(jobNumber) && retries < 3) {
+            jobNumber = generateJobNumber();
+            retries++;
+        }
+        if (jobCardRepository.existsByJobNumber(jobNumber)) {
+            throw new DuplicateFieldException("jobNumber", "Job number collision, please retry");
+        }
         JobCard jobCard = new JobCard(jobNumber, request.getCustomerName(), request.getCustomerPhone(),
                 request.getVehicleRegistration(), request.getVehicleModel(), request.getRequestedWork(), user);
         jobCard = jobCardRepository.save(jobCard);
@@ -189,13 +200,81 @@ public class JobCardService {
                 "Used on " + jobCard.getJobNumber(), TransactionSourceType.JOB_CARD, jobCard.getJobNumber(), user);
         stockTransactionRepository.save(tx);
 
-        JobCardPart jcp = new JobCardPart(jobCard, part, request.getQuantity());
+        // UPSERT: find existing JobCardPart for this part on this job card, or create new with quantity 0
+        JobCardPart jcp = jobCardPartRepository.findByJobCardIdAndPartId(jobCardId, request.getPartId())
+                .orElseGet(() -> new JobCardPart(jobCard, part, 0));
+        jcp.setQuantity(jcp.getQuantity() + request.getQuantity());
         jcp = jobCardPartRepository.save(jcp);
 
         jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.PART_ADDED,
-                request.getQuantity() + "x " + part.getName() + " (" + part.getPartNumber() + ") added", user.getFullName()));
+                request.getQuantity() + "x " + part.getName() + " (" + part.getPartNumber() + ") added"
+                        + " — total: " + jcp.getQuantity() + "x on job card", user.getFullName()));
 
         return JobCardPartResponse.fromEntity(jcp);
+    }
+
+    @Transactional
+    public void removePart(Long jobCardId, Long jobCardPartId, User user) {
+        JobCard jobCard = jobCardRepository.findById(jobCardId)
+                .orElseThrow(() -> new ResourceNotFoundException("Job card not found with id: " + jobCardId));
+        JobCardPart jcp = jobCardPartRepository.findByIdAndJobCardId(jobCardPartId, jobCardId)
+                .orElseThrow(() -> new ResourceNotFoundException("Job card part not found with id: " + jobCardPartId));
+
+        Part part = jcp.getPart();
+        part.setCurrentQuantity(part.getCurrentQuantity() + jcp.getQuantity());
+        partRepository.save(part);
+
+        StockTransaction tx = new StockTransaction(part, TransactionType.IN, jcp.getQuantity(),
+                "Removed from " + jobCard.getJobNumber(), TransactionSourceType.JOB_CARD, jobCard.getJobNumber(), user);
+        stockTransactionRepository.save(tx);
+
+        jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.PART_REMOVED,
+                jcp.getQuantity() + "x " + part.getName() + " (" + part.getPartNumber() + ") removed", user.getFullName()));
+
+        jobCardPartRepository.delete(jcp);
+    }
+
+    @Transactional
+    public JobCardPartResponse replacePart(Long jobCardId, Long jobCardPartId, ReplacePartRequest request, User user) {
+        JobCard jobCard = jobCardRepository.findById(jobCardId)
+                .orElseThrow(() -> new ResourceNotFoundException("Job card not found with id: " + jobCardId));
+        JobCardPart oldJcp = jobCardPartRepository.findByIdAndJobCardId(jobCardPartId, jobCardId)
+                .orElseThrow(() -> new ResourceNotFoundException("Job card part not found with id: " + jobCardPartId));
+
+        Part oldPart = oldJcp.getPart();
+        oldPart.setCurrentQuantity(oldPart.getCurrentQuantity() + oldJcp.getQuantity());
+        partRepository.save(oldPart);
+
+        StockTransaction inTx = new StockTransaction(oldPart, TransactionType.IN, oldJcp.getQuantity(),
+                "Replaced from " + jobCard.getJobNumber(), TransactionSourceType.JOB_CARD, jobCard.getJobNumber(), user);
+        stockTransactionRepository.save(inTx);
+
+        Part newPart = partRepository.findById(request.getNewPartId())
+                .orElseThrow(() -> new ResourceNotFoundException("Part not found with id: " + request.getNewPartId()));
+
+        if (newPart.getCurrentQuantity() < request.getQuantity()) {
+            throw new BadRequestException("Insufficient stock for " + newPart.getPartNumber()
+                    + ". Available: " + newPart.getCurrentQuantity() + ", requested: " + request.getQuantity());
+        }
+
+        newPart.setCurrentQuantity(newPart.getCurrentQuantity() - request.getQuantity());
+        partRepository.save(newPart);
+
+        StockTransaction outTx = new StockTransaction(newPart, TransactionType.OUT, request.getQuantity(),
+                "Used on " + jobCard.getJobNumber(), TransactionSourceType.JOB_CARD, jobCard.getJobNumber(), user);
+        stockTransactionRepository.save(outTx);
+
+        JobCardPart newJcp = new JobCardPart(jobCard, newPart, request.getQuantity());
+        newJcp = jobCardPartRepository.save(newJcp);
+
+        jobCardPartRepository.delete(oldJcp);
+
+        String eventDesc = String.format("Replaced %dx %s (%s) with %dx %s (%s)",
+                oldJcp.getQuantity(), oldPart.getName(), oldPart.getPartNumber(),
+                request.getQuantity(), newPart.getName(), newPart.getPartNumber());
+        jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.PART_REPLACED, eventDesc, user.getFullName()));
+
+        return JobCardPartResponse.fromEntity(newJcp);
     }
 
     public List<JobCardPartResponse> getParts(Long jobCardId) {

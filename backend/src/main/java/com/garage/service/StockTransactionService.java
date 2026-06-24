@@ -81,4 +81,9 @@ public class StockTransactionService {
         return stockTransactionRepository.findTop10ByOrderByCreatedAtDesc().stream()
                 .map(StockTransactionResponse::fromEntity).toList();
     }
+
+    public List<StockTransactionResponse> getAllStockInTransactions() {
+        return stockTransactionRepository.findByTypeOrderByCreatedAtDesc(TransactionType.IN).stream()
+                .map(StockTransactionResponse::fromEntity).toList();
+    }
 }

@@ -4,6 +4,7 @@ import com.garage.dto.auth.LoginRequest;
 import com.garage.dto.auth.UpdateProfileRequest;
 import com.garage.dto.response.JwtResponse;
 import com.garage.exception.BadRequestException;
+import com.garage.exception.DuplicateFieldException;
 import com.garage.model.User;
 import com.garage.repository.UserRepository;
 import com.garage.security.JwtUtils;
@@ -51,7 +52,7 @@ public class AuthService {
         }
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
             if (!request.getEmail().equals(user.getEmail()) && userRepository.existsByEmail(request.getEmail())) {
-                throw new BadRequestException("Email is already in use");
+                throw new DuplicateFieldException("email", "Email is already in use");
             }
             user.setEmail(request.getEmail());
         }

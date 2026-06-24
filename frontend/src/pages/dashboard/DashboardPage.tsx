@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   Package, ArrowDownToLine, ClipboardList, PlayCircle, CheckCircle2,
-  Plus, AlertTriangle, Wrench, Clock
+  Plus, AlertTriangle, Wrench, Clock, RefreshCw
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useDocumentTitle } from "@/hooks/useDocumentTitle"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
 import { timeSince } from "@/lib/utils"
+import { toast } from "sonner"
 
 const statusLabel: Record<string, string> = {
   OPEN: "Open",
@@ -37,22 +38,52 @@ export function DashboardPage() {
   const [recentJobs, setRecentJobs] = useState<JobCard[]>([])
   const [lowStockParts, setLowStockParts] = useState<Part[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
+  const [errors, setErrors] = useState({
+    stats: false,
+    transactions: false,
+    jobs: false,
+    lowStock: false,
+  })
 
-  useEffect(() => {
-    Promise.all([
+  const loadDashboard = () => {
+    setLoading(true)
+    setHasError(false)
+    setErrors({ stats: false, transactions: false, jobs: false, lowStock: false })
+
+    Promise.allSettled([
       dashboardService.getStats(),
       stockService.getTransactions(),
       dashboardService.getRecentJobs(),
       partService.getLowStock(),
-    ])
-      .then(([statsRes, txRes, jobsRes, lowRes]) => {
-        setStats(statsRes.data)
-        setTransactions(txRes.data)
-        setRecentJobs(jobsRes.data)
-        setLowStockParts(lowRes.data)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    ]).then(([statsRes, txRes, jobsRes, lowRes]) => {
+      const newErrors = {
+        stats: statsRes.status === "rejected",
+        transactions: txRes.status === "rejected",
+        jobs: jobsRes.status === "rejected",
+        lowStock: lowRes.status === "rejected",
+      }
+      setErrors(newErrors)
+
+      if (statsRes.status === "fulfilled") setStats(statsRes.value.data)
+      if (txRes.status === "fulfilled") setTransactions(txRes.value.data)
+      if (jobsRes.status === "fulfilled") setRecentJobs(jobsRes.value.data)
+      if (lowRes.status === "fulfilled") setLowStockParts(lowRes.value.data)
+
+      const someFailed = Object.values(newErrors).some(Boolean)
+      const allFailed = Object.values(newErrors).every(Boolean)
+      setHasError(allFailed)
+
+      if (someFailed && !allFailed) {
+        toast.error("Some dashboard data failed to load")
+      } else if (allFailed) {
+        toast.error("Failed to load dashboard data")
+      }
+    }).finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadDashboard()
   }, [])
 
   const inProgressJobs = recentJobs.filter((j) => j.status === "IN_PROGRESS")
@@ -65,6 +96,31 @@ export function DashboardPage() {
         { title: "Completed Today", value: stats.completedToday, icon: CheckCircle2, href: "/jobs" },
       ]
     : []
+
+  // Full error state
+  if (hasError && !loading) {
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <Breadcrumbs segments={[{ label: "Dashboard" }]} />
+        <div className="flex items-center gap-2">
+          <Wrench className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        </div>
+        <Card className="border-destructive/30">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="mb-4 h-12 w-12 text-destructive" />
+            <h3 className="text-lg font-semibold mb-2">Unable to load dashboard</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Could not load any dashboard data. Please check your connection and try again.
+            </p>
+            <Button onClick={loadDashboard}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -144,6 +200,8 @@ export function DashboardPage() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
+            ) : errors.lowStock ? (
+              <p className="text-sm text-muted-foreground">Failed to load low stock data.</p>
             ) : lowStockParts.length === 0 ? (
               <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4" />
@@ -196,6 +254,8 @@ export function DashboardPage() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
+            ) : errors.jobs ? (
+              <p className="text-sm text-muted-foreground">Failed to load jobs data.</p>
             ) : inProgressJobs.length === 0 ? (
               <p className="text-sm text-muted-foreground">No jobs in progress.</p>
             ) : (
@@ -237,6 +297,8 @@ export function DashboardPage() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
+            ) : errors.jobs ? (
+              <p className="text-sm text-muted-foreground">Failed to load jobs data.</p>
             ) : recentJobs.length === 0 ? (
               <p className="text-sm text-muted-foreground">No job cards yet.</p>
             ) : (
@@ -274,6 +336,8 @@ export function DashboardPage() {
                   <Skeleton key={i} className="h-10 w-full" />
                 ))}
               </div>
+            ) : errors.transactions ? (
+              <p className="text-sm text-muted-foreground">Failed to load transactions data.</p>
             ) : transactions.length === 0 ? (
               <p className="text-sm text-muted-foreground">No transactions yet.</p>
             ) : (

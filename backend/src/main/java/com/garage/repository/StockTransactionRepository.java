@@ -1,6 +1,7 @@
 package com.garage.repository;
 
 import com.garage.model.StockTransaction;
+import com.garage.dto.report.AggregatedStockInEntry;
 import com.garage.dto.report.AggregatedStockOutEntry;
 import com.garage.model.enums.TransactionType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,4 +24,10 @@ public interface StockTransactionRepository extends JpaRepository<StockTransacti
            "GROUP BY t.part.partNumber, t.part.name, CAST(t.createdAt AS date) " +
            "ORDER BY CAST(t.createdAt AS date) DESC, t.part.partNumber ASC")
     List<AggregatedStockOutEntry> findAggregatedStockOutReport();
+
+    @Query("SELECT NEW com.garage.dto.report.AggregatedStockInEntry(t.part.partNumber, t.part.name, SUM(t.quantity), CAST(t.createdAt AS date)) " +
+           "FROM StockTransaction t WHERE t.type = 'IN' " +
+           "GROUP BY t.part.partNumber, t.part.name, CAST(t.createdAt AS date) " +
+           "ORDER BY CAST(t.createdAt AS date) DESC, t.part.partNumber ASC")
+    List<AggregatedStockInEntry> findAggregatedStockInReport();
 }

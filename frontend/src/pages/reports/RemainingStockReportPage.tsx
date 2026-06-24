@@ -16,6 +16,7 @@ export function RemainingStockReportPage() {
   const [reports, setReports] = useState<RemainingStockReport[]>([])
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
 
   const filtered = useMemo(() => {
     if (!search.trim()) return reports
@@ -45,6 +46,8 @@ export function RemainingStockReportPage() {
   }, [])
 
   const downloadExcel = async () => {
+    setDownloading(true)
+    try {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet("Remaining Stock")
 
@@ -76,6 +79,11 @@ export function RemainingStockReportPage() {
     }
     headerRow.height = 28
 
+    ws.autoFilter = {
+      from: { row: headerRow.number, column: 1 },
+      to: { row: headerRow.number, column: 9 }
+    }
+
     reports.forEach((r, i) => {
       const row = ws.addRow([
         i + 1, r.ourPartNumber || "", r.partNumber, r.name,
@@ -90,17 +98,41 @@ export function RemainingStockReportPage() {
         }
         cell.font = { size: 11 }
       })
+      row.getCell(8).alignment = { horizontal: "right", vertical: "middle" }
+      row.getCell(9).alignment = { horizontal: "right", vertical: "middle" }
+      row.getCell(8).font = { bold: true, size: 11 }
+      row.getCell(8).numFmt = '#,##0'
+      row.getCell(9).numFmt = '#,##0'
+      if (r.currentQuantity < r.minimumQuantity) {
+        row.eachCell((cell) => {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF0F0" } }
+        })
+        row.getCell(8).font = { bold: true, size: 11, color: { argb: "FFDC2626" } }
+      }
+      if (i % 2 === 0 && !(r.currentQuantity < r.minimumQuantity)) {
+        row.eachCell((cell, colNum) => {
+          if (colNum > 1 && cell.fill && "fgColor" in cell.fill && cell.fill.fgColor?.argb === "FFFFFFFF") {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8F9FA" } }
+          }
+        })
+      }
     })
 
     const colWidths = [8, 16, 18, 30, 22, 18, 14, 10, 10]
     colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w })
 
+    ws.views = [{ state: "frozen", ySplit: 2 }]
     const buf = await wb.xlsx.writeBuffer()
     const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url; a.download = "remaining-stock-report.xlsx"; a.click()
     URL.revokeObjectURL(url)
+    } catch {
+      toast.error("Failed to generate report")
+    } finally {
+      setDownloading(false)
+    }
   }
 
   return (
@@ -111,8 +143,8 @@ export function RemainingStockReportPage() {
           <ClipboardList className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold tracking-tight">Remaining Stock Report</h1>
         </div>
-        <Button variant="outline" onClick={downloadExcel}>
-          <Download className="mr-1 h-4 w-4" /> XLSX
+        <Button variant="outline" onClick={downloadExcel} disabled={downloading}>
+          <Download className="mr-1 h-4 w-4" /> {downloading ? "Exporting..." : "Export Report"}
         </Button>
       </div>
 

@@ -11,6 +11,7 @@ import { Wrench, ArrowLeft, RotateCcw } from "lucide-react"
 import { toast } from "sonner"
 import { useDocumentTitle } from "@/hooks/useDocumentTitle"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
+import axios from "axios"
 
 const DRAFT_KEY = "job-card-draft"
 
@@ -37,6 +38,7 @@ export function JobCardFormPage() {
   const navigate = useNavigate()
   const [saving, setSaving] = useState(false)
   const [showRestore, setShowRestore] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<JobCardRequest>({
     customerName: "",
     customerPhone: "",
@@ -77,14 +79,28 @@ export function JobCardFormPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErrors({})
     setSaving(true)
     try {
       await jobCardService.create(form)
       clearDraft()
       toast.success("Job card created")
       navigate("/jobs")
-    } catch {
-      toast.error("Failed to create job card")
+    } catch (err: unknown) {
+      const knownFieldNames = ["customerName", "customerPhone", "vehicleRegistration", "vehicleModel", "requestedWork"];
+      if (axios.isAxiosError(err) && err.response?.data) {
+        const data = err.response.data as Record<string, string>;
+        const hasFieldErrors = Object.keys(data).some((k) => knownFieldNames.includes(k));
+        if (hasFieldErrors) {
+          setErrors(data);
+        } else if (data.message) {
+          toast.error(data.message);
+        } else {
+          toast.error("Failed to create job card");
+        }
+      } else {
+        toast.error("Failed to create job card");
+      }
     } finally {
       setSaving(false)
     }
@@ -130,8 +146,12 @@ export function JobCardFormPage() {
               <div className="space-y-2">
                 <Label htmlFor="customerName">Customer Name *</Label>
                 <Input id="customerName" value={form.customerName}
-                  onChange={(e) => update("customerName", e.target.value)} required
+                  onChange={(e) => { setErrors((prev) => ({ ...prev, customerName: "" })); update("customerName", e.target.value) }}
+                  required className={errors.customerName ? "border-destructive" : ""}
                   placeholder="e.g., John Doe" />
+                {errors.customerName && (
+                  <p className="text-xs text-destructive">{errors.customerName}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="customerPhone">Phone</Label>

@@ -1,5 +1,5 @@
 import { api } from "@/lib/api"
-import type { AddPartRequest, JobCard, JobCardPart, JobCardRequest, JobCardStatus } from "@/types"
+import type { AddPartRequest, JobCard, JobCardPart, JobCardRequest, JobCardStatus, ReplacePartRequest } from "@/types"
 
 export const jobCardService = {
   getAll: () => api.get<JobCard[]>("/job-cards"),
@@ -14,4 +14,8 @@ export const jobCardService = {
     api.put<JobCard>(`/job-cards/${id}/status`, { status }),
   addPart: (id: number, data: AddPartRequest) => api.post<JobCardPart>(`/job-cards/${id}/parts`, data),
   getParts: (id: number) => api.get<JobCardPart[]>(`/job-cards/${id}/parts`),
+  removePart: (jobCardId: number, jobCardPartId: number) =>
+    api.delete(`/job-cards/${jobCardId}/parts/${jobCardPartId}`),
+  replacePart: (jobCardId: number, jobCardPartId: number, data: ReplacePartRequest) =>
+    api.put<JobCardPart>(`/job-cards/${jobCardId}/parts/${jobCardPartId}`, data),
 }

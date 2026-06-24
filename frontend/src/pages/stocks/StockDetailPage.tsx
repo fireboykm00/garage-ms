@@ -26,7 +26,7 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
 
 export function StockDetailPage() {
-  const { id } = useParams()
+  const { stockId } = useParams()
   const navigate = useNavigate()
   const { isAdmin, isStorekeeper } = useAuth()
   const canEdit = isAdmin || isStorekeeper
@@ -39,11 +39,11 @@ export function StockDetailPage() {
   useDocumentTitle(stock ? `${stock.name} — Parts` : "Stock Parts")
 
   useEffect(() => {
-    if (!id) return
+    if (!stockId) return
     setLoading(true)
     Promise.all([
-      stockService.getById(Number(id)),
-      stockService.getParts(Number(id)),
+      stockService.getById(Number(stockId)),
+      stockService.getParts(Number(stockId)),
     ])
       .then(([stockRes, partsRes]) => {
         setStock(stockRes.data)
@@ -51,7 +51,7 @@ export function StockDetailPage() {
       })
       .catch(() => toast.error("Failed to load stock details"))
       .finally(() => setLoading(false))
-  }, [id])
+  }, [stockId])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return parts
@@ -70,7 +70,7 @@ export function StockDetailPage() {
     try {
       await partService.delete(partId)
       toast.success("Part deleted")
-      const res = await stockService.getParts(Number(id))
+      const res = await stockService.getParts(Number(stockId))
       setParts(res.data)
     } catch {
       toast.error("Failed to delete part")
