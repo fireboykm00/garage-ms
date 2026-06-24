@@ -1,0 +1,12 @@
+target/
+*.jar
+*.war
+.idea/
+.settings/
+.project
+.classpath
+*.iml
+.DS_Store
+.git/
+.gitignore
+logs/

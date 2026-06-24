@@ -1,0 +1,81 @@
+// E-Commerce Recommendation System Database Schema
+// For dbdiagram.io - https://dbdiagram.io
+
+Table users {
+  id bigint [pk, increment, note: 'Primary key']
+  username varchar [unique, not null, note: 'Unique username for login']
+  email varchar [unique, not null, note: 'User email address']
+  password varchar [not null, note: 'BCrypt encoded password']
+  full_name varchar [not null, note: 'User full name']
+  created_at timestamp [default: 'now()', note: 'Account creation timestamp']
+  updated_at timestamp [default: 'now()', note: 'Last update timestamp']
+}
+
+Table user_roles {
+  user_id bigint [ref: > users.id, note: 'Foreign key to users']
+  role varchar [note: 'User role (ROLE_ADMIN, ROLE_CUSTOMER)']
+  
+  Indexes {
+    (user_id, role) [pk]
+  }
+}
+
+Table categories {
+  id bigint [pk, increment, note: 'Primary key']
+  name varchar [unique, not null, note: 'Category name']
+  description text [note: 'Category description']
+  created_at timestamp [default: 'now()']
+  updated_at timestamp [default: 'now()']
+}
+
+Table products {
+  id bigint [pk, increment, note: 'Primary key']
+  name varchar [not null, note: 'Product name']
+  description text [note: 'Product description']
+  price decimal [not null, note: 'Product price']
+  category_id bigint [ref: > categories.id, note: 'Foreign key to categories']
+  stock_quantity int [not null, default: 0, note: 'Available stock']
+  image_url varchar [note: 'Product image URL']
+  created_at timestamp [default: 'now()']
+  updated_at timestamp [default: 'now()']
+  
+  Indexes {
+    category_id
+  }
+}
+
+Table orders {
+  id bigint [pk, increment, note: 'Primary key']
+  user_id bigint [ref: > users.id, note: 'Foreign key to users']
+  total_amount decimal [not null, note: 'Order total']
+  status varchar [not null, default: 'PENDING', note: 'Order status']
+  shipping_address text [note: 'Delivery address']
+  created_at timestamp [default: 'now()']
+  updated_at timestamp [default: 'now()']
+  
+  Indexes {
+    user_id
+  }
+}
+
+Table order_items {
+  id bigint [pk, increment, note: 'Primary key']
+  order_id bigint [ref: > orders.id, note: 'Foreign key to orders']
+  product_id bigint [ref: > products.id, note: 'Foreign key to products']
+  quantity int [not null, note: 'Number of items']
+  unit_price decimal [not null, note: 'Price per unit at purchase']
+  created_at timestamp [default: 'now()']
+  updated_at timestamp [default: 'now()']
+  
+  Indexes {
+    order_id
+    product_id
+  }
+}
+
+// Referrals (Relationships)
+Ref: users.id < user_roles.user_id
+Ref: categories.id < products.category_id
+Ref: users.id < orders.user_id
+Ref: orders.id < order_items.order_id
+Ref: products.id < order_items.product_id

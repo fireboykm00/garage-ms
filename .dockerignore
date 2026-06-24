@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs  
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.h2.db
+data/
+
+# Environment
+.env
+.env.local
+*.env.*.local

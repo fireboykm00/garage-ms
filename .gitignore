@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+dist/
+build/
+target/
+*.jar
+
+# IDE generated
+.factorypath
+
+# Database
+*.db
+data/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Temporary
+*.bak
+*.swp
+*~

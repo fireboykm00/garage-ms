@@ -1,0 +1,28 @@
+#!/bin/bash
+# Maven Wrapper - uses system Maven
+
+MAVEN_PROJECTBASEDIR="$(dirname "$0")"
+
+# Find Maven in common locations
+find_maven() {
+    # Check PATH first
+    for cmd in mvn; do
+        if command -v $cmd &>/dev/null; then
+            $cmd "$@"
+            return $?
+        fi
+    done
+    
+    # Check SDKMAN location
+    for path in /home/kaza/.sdkman/candidates/maven/current/bin/mvn; do
+        if [ -x "$path" ]; then
+            "$path" "$@"
+            return $?
+        fi
+    done
+    
+    echo "Maven not found. Please install Maven."
+    exit 1
+}
+
+find_maven "$@"
