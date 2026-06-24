@@ -176,8 +176,9 @@ export function AdminUsersPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ROLE_ADMIN">Admin</SelectItem>
                     <SelectItem value="ROLE_STOREKEEPER">Storekeeper</SelectItem>
+                    <SelectItem value="ROLE_MECHANIC">Mechanic</SelectItem>
+                    <SelectItem value="ROLE_RECEPTIONIST">Receptionist</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

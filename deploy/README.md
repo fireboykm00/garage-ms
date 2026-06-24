@@ -1,259 +1,231 @@
-# Garage Inventory — Deployment Guide
+# Garage Inventory — Production Deployment Guide
 
-This directory contains everything needed to deploy the **Garage Inventory Management System** with the **backend and frontend hosted separately**.
+> **Stack:** TiDB Cloud (DB) + Render (Backend) + Vercel (Frontend)
+>
+> All three have free tiers. No credit card needed for TiDB Cloud or Vercel.
+
+---
 
 ## Architecture
 
 ```
-┌──────────────┐     HTTPS/API calls      ┌──────────────┐
-│   FRONTEND   │ ──────────────────▶      │   BACKEND    │
-│  (Nginx SPA) │     /api/*               │  (Spring Boot)│
-│              │ ◀──────────────────      │              │
-│  Port 80/443 │     JSON responses       │  Port 8080   │
-└──────────────┘                          └──────┬───────┘
-                                                 │
-                                          ┌──────▼───────┐
-                                          │   MySQL DB   │
-                                          │   Port 3306  │
-                                          └──────────────┘
+                          TiDB Cloud (MySQL 8.0 compatible)
+                         ┌──────────────────────────────┐
+                         │  Serverless Cluster           │
+                         │  Port 4000, SSL required      │
+                         └──────────▲───────────────────┘
+                                    │ TCP/4000
+                         ┌──────────┴───────────────────┐
+  ┌──────────────┐       │       Render Web Service      │       ┌──────────────┐
+  │   Vercel     │  /api/*  │   Spring Boot API          │  JDBC  │  garage_db   │
+  │  (Frontend)  │ ──────▶ │   Port 8080                 │ ──────▶ │  (database)  │
+  │  Static SPA  │ ◀────── │   JWT, CORS, JPA            │        └──────────────┘
+  │  Global CDN  │  JSON   │                             │
+  └──────────────┘         └─────────────────────────────┘
 ```
 
-The frontend is a **static SPA** served by Nginx. It communicates with the backend via REST API calls at `/api/*` (proxied through Nginx). The backend is a Spring Boot JAR connecting to a MySQL database.
-
-## Prerequisites
-
-- Java 21+ runtime for the backend (or Docker)
-- MySQL 8.0+ database
-- Node.js 22+ for frontend builds (or Docker)
-- (Optional) Docker + Docker Compose
-
-## Files in this directory
-
-```
-deploy/
-├── backend/
-│   ├── Dockerfile        # Backend container (multi-stage build)
-│   └── .dockerignore
-├── frontend/
-│   ├── Dockerfile        # Frontend container (multi-stage build + nginx)
-│   ├── nginx.conf        # Nginx SPA config with API proxy
-│   └── .dockerignore
-├── db/
-│   └── schema.sql        # MySQL DDL (run once to initialise the database)
-└── README.md             # This file
-```
-
-Additionally, the file `backend/src/main/resources/application-prod.properties` was created as the Spring production profile. It is **automatically activated** by the backend Dockerfile via `SPRING_PROFILES_ACTIVE=prod`.
+- **Frontend (Vercel):** Static SPA built by Vite, served globally via CDN
+- **Backend (Render):** Spring Boot JAR, connects to TiDB Cloud via MySQL JDBC
+- **Database (TiDB Cloud):** MySQL 8.0 wire-compatible, auto-scaling, free tier
 
 ---
 
-## Deployment Options
+## Prerequisites
 
-### Option 1: Docker Compose (easiest for testing / single-machine)
+- GitHub account (connects to Render + Vercel)
+- Repository pushed to GitHub with the full project
 
-A `docker-compose.yml` is at the project root if you want to keep the monolith approach. For **separate** hosting:
+---
 
-```bash
-# Build backend image
-cd deploy/backend
-docker build -t garage-backend ../../
+## Step 1 — TiDB Cloud (Database)
 
-# Build frontend image
-cd ../frontend
-docker build -t garage-frontend ../../frontend
+1. Go to [tidbcloud.com](https://tidbcloud.com) and sign up (free, no credit card)
+2. Click **"Create Cluster"** → **"Serverless"** tier
+3. Choose a region (e.g. `eu-central-1` Frankfurt — closest to you)
+4. Wait ~2 minutes for provisioning
+5. Click **"Connect"** → copy the connection string:
+   ```
+   mysql://2EZ5TVs79pzi2SJ.root:<PASSWORD>@gateway01.eu-central-1.prod.aws.tidbcloud.com:4000/sys
+   ```
+6. (Recommended) Create a dedicated database:
+   ```sql
+   CREATE DATABASE garage_db
+     CHARACTER SET utf8mb4
+     COLLATE utf8mb4_unicode_ci;
+   ```
+   You can do this via the TiDB Cloud web SQL editor or any MySQL client.
+7. Note down these values — you'll need them for Render:
+   - **Host:** `gateway01.eu-central-1.prod.aws.tidbcloud.com`
+   - **Port:** `4000`
+   - **Username:** `2EZ5TVs79pzi2SJ.root`
+   - **Password:** (shown once when you click "Connect")
 
-# Run MySQL
-docker run -d \
-  --name garage-db \
-  -e MYSQL_ROOT_PASSWORD=rootpass \
-  -e MYSQL_DATABASE=garage_db \
-  -e MYSQL_USER=garage_user \
-  -e MYSQL_PASSWORD=changeme \
-  -p 3306:3306 \
-  mysql:8.0
+---
 
-# Run backend
-docker run -d \
-  --name garage-api \
-  -p 8080:8080 \
-  -e SPRING_DATASOURCE_URL='jdbc:mysql://host.docker.internal:3306/garage_db?useSSL=false&serverTimezone=UTC' \
-  -e SPRING_DATASOURCE_USERNAME=garage_user \
-  -e SPRING_DATASOURCE_PASSWORD=changeme \
-  -e APP_JWT_SECRET='replace-with-a-64-char-random-string-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' \
-  -e APP_FRONTEND_URL='http://localhost' \
-  garage-backend
+## Step 2 — Render (Backend)
 
-# Run frontend
-docker run -d \
-  --name garage-web \
-  -p 80:80 \
-  -e BACKEND_HOST=host.docker.internal:8080 \
-  garage-frontend
-```
+1. Go to [render.com](https://render.com) → sign up with GitHub
+2. Click **"New +"** → **"Web Service"**
+3. Connect your GitHub repo containing the project
+4. Configure the service:
 
-### Option 2: Fully separated (bare metal / VMs)
+   | Setting | Value |
+   |---|---|
+   | **Name** | `garage-api` |
+   | **Region** | Frankfurt (`eu-central-1`) — close to TiDB |
+   | **Branch** | `main` |
+   | **Runtime** | **Docker** |
+   | **Build Filter** | Leave "Auto-Deploy" on |
+   | **Plan** | Free |
+   | **Health Check Path** | `/api/health` |
 
-#### Step 1 — Database
-```sql
--- Run deploy/db/schema.sql against your MySQL instance
-mysql -h <db-host> -u root -p < deploy/db/schema.sql
-```
+5. Under **"Environment Variables"**, add these:
 
-Then create a user:
-```sql
-CREATE USER 'garage_user'@'%' IDENTIFIED BY 'your-strong-password';
-GRANT ALL PRIVILEGES ON garage_db.* TO 'garage_user'@'%';
-FLUSH PRIVILEGES;
-```
+   | Variable | Value |
+   |---|---|
+   | `SPRING_PROFILES_ACTIVE` | `prod` |
+   | `SPRING_DATASOURCE_URL` | `jdbc:mysql://gateway01.eu-central-1.prod.aws.tidbcloud.com:4000/garage_db?ssl-mode=VERIFY_IDENTITY&serverTimezone=UTC` |
+   | `SPRING_DATASOURCE_USERNAME` | `2EZ5TVs79pzi2SJ.root` |
+   | `SPRING_DATASOURCE_PASSWORD` | *(your TiDB cluster password)* |
+   | `APP_JWT_SECRET` | *(generate: `openssl rand -base64 48`)* |
+   | `APP_FRONTEND_URL` | `https://your-frontend.vercel.app` *(you'll set this after Step 3)* |
+   | `SERVER_PORT` | `8080` |
+   | `SPRING_JPA_DDL_AUTO` | `update` *(creates tables on first deploy)* |
 
-#### Step 2 — Backend
+6. Click **"Create Web Service"**
+7. Render builds the Docker image using `deploy/backend/Dockerfile` and deploys
 
-```bash
-# Build
-cd garage/backend
-mvn package -DskipTests
+> **Render Docker setup:** The deploy Dockerfile is at `deploy/backend/Dockerfile`.
+> If Render asks for the Dockerfile path, enter `deploy/backend/Dockerfile`.
+> If it uses the root `Dockerfile` (the monolith one), go to Render dashboard →
+> **Settings** → **Docker Command** → change to `deploy/backend/Dockerfile`,
+> or delete the old root Dockerfile (it builds a combined image).
 
-# Run (all config via env vars)
-export SPRING_PROFILES_ACTIVE=prod
-export SPRING_DATASOURCE_URL='jdbc:mysql://<db-host>:3306/garage_db?useSSL=true&serverTimezone=UTC'
-export SPRING_DATASOURCE_USERNAME=garage_user
-export SPRING_DATASOURCE_PASSWORD='your-strong-password'
-export APP_JWT_SECRET='<random-64-char-string>'
-export APP_FRONTEND_URL='https://your-frontend-domain.com'
-export SERVER_PORT=8080
+8. Once deployed, note your backend URL: `https://garage-api.onrender.com`
 
-java -jar target/garage-backend-0.0.1-SNAPSHOT.jar
-```
+---
 
-Or using systemd: create `/etc/systemd/system/garage-api.service`:
+## Step 3 — Vercel (Frontend)
 
-```ini
-[Unit]
-Description=Garage Inventory Backend
-After=network.target
+1. Go to [vercel.com](https://vercel.com) → sign up with GitHub
+2. Click **"Add New…"** → **"Project"**
+3. Import your repo → set the **Root Directory** to `frontend`
+4. Configure:
 
-[Service]
-Type=simple
-User=garage
-WorkingDirectory=/opt/garage/backend
-ExecStart=/usr/bin/java -jar /opt/garage/backend/app.jar
-Environment=SPRING_PROFILES_ACTIVE=prod
-Environment=SPRING_DATASOURCE_URL=jdbc:mysql://...
-Environment=SPRING_DATASOURCE_USERNAME=garage_user
-Environment=SPRING_DATASOURCE_PASSWORD=...
-Environment=APP_JWT_SECRET=...
-Environment=APP_FRONTEND_URL=https://your-frontend.com
-Restart=always
-RestartSec=10
+   | Setting | Value |
+   |---|---|
+   | **Framework Preset** | Vite |
+   | **Build Command** | `pnpm build` |
+   | **Output Directory** | `dist` |
+   | **Install Command** | `pnpm install` |
 
-[Install]
-WantedBy=multi-user.target
-```
+5. **Environment Variable:**
 
-#### Step 3 — Frontend
+   | Variable | Value |
+   |---|---|
+   | `VITE_API_URL` | `https://garage-api.onrender.com/api` |
 
-**Via Docker:**
-```bash
-cd deploy/frontend
-docker build \
-  --build-arg VITE_API_URL=https://your-backend-domain.com/api \
-  -t garage-frontend \
-  ../../frontend
+6. Click **"Deploy"**
+7. Vercel automatically detects this is a Vite SPA and sets up the route rewrite
+   (`/*` → `/index.html`) for client-side routing. Verify this in your Vercel project
+   Dashboard → **Settings** → **Rewrites** — it should have a catch-all rewrite.
+8. Note your frontend URL: `https://garage-inventory.vercel.app`
 
-docker run -d \
-  -p 80:80 \
-  -e BACKEND_HOST=your-backend-domain.com:8080 \
-  garage-frontend
-```
+9. **Go back to Render** and update `APP_FRONTEND_URL` to `https://garage-inventory.vercel.app`
+   — this controls CORS on the backend.
 
-**Via static hosting (Vercel / Netlify / Cloudflare Pages / S3+CloudFront):**
-```bash
-cd frontend
-VITE_API_URL=https://your-backend-domain.com/api pnpm build
-# dist/ folder is ready to deploy — just upload it.
-# Make sure your host has SPA redirect: all routes → /index.html
-```
+---
+
+## Step 4 — Verify
+
+1. **Health check:** `curl https://garage-api.onrender.com/api/health`
+   ```json
+   {"status":"UP","service":"garage-inventory"}
+   ```
+
+2. **Login:** Open the frontend URL → login with `admin` / `admin123`
+   - Default users are auto-created by `DataInitializer` via the first Hibernate session
+
+3. **Test a flow:**
+   - Navigate to **Parts** → verify seed data loaded (26 parts from DataInitializer)
+   - Create a **Stock In** transaction
+   - Create a **Job Card** → add a part
+   - Check **Dashboard** shows stats
+
+4. **Redeploy on change:** Push to `main` — both Render and Vercel auto-deploy
 
 ---
 
 ## Required Environment Variables
 
-### Backend
+### Backend (on Render)
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `SPRING_DATASOURCE_URL` | ✅ Yes | — | Full JDBC URL to your MySQL database |
-| `SPRING_DATASOURCE_USERNAME` | ✅ Yes | — | MySQL username |
-| `SPRING_DATASOURCE_PASSWORD` | ✅ Yes | — | MySQL password |
-| `APP_JWT_SECRET` | ✅ Yes | — | Min 32 chars, use a strong random string |
-| `APP_FRONTEND_URL` | ✅ Yes | — | Public URL of the deployed frontend (for CORS) |
-| `SERVER_PORT` | ❌ No | `8080` | Backend listen port |
-| `APP_JWT_EXPIRATION` | ❌ No | `86400000` | JWT expiry in ms (24h) |
-| `SPRING_JPA_DDL_AUTO` | ❌ No | `update` | JPA schema strategy (`update`, `validate`, `none`) |
+| Variable | Required | Description |
+|---|---|---|
+| `SPRING_DATASOURCE_URL` | ✅ Yes | Full JDBC URL to TiDB Cloud: `jdbc:mysql://gateway...garage_db?ssl-mode=VERIFY_IDENTITY&serverTimezone=UTC` |
+| `SPRING_DATASOURCE_USERNAME` | ✅ Yes | TiDB Cloud username (e.g. `2EZ5TVs79pzi2SJ.root`) |
+| `SPRING_DATASOURCE_PASSWORD` | ✅ Yes | TiDB Cloud cluster password |
+| `APP_JWT_SECRET` | ✅ Yes | Min 32 chars — generate with `openssl rand -base64 48` |
+| `APP_FRONTEND_URL` | ✅ Yes | Public Vercel URL (e.g. `https://garage-inventory.vercel.app`) |
+| `SPRING_PROFILES_ACTIVE` | ✅ Yes | Must be `prod` |
+| `SPRING_JPA_DDL_AUTO` | ❌ No | Default: `update`. Switch to `validate` after initial deploy |
 
-### Frontend (build-time)
+### Frontend (on Vercel — build-time)
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `VITE_API_URL` | ✅ Yes | `http://localhost:8080/api` | Full API base URL (e.g. `https://api.example.com/api`) |
+| Variable | Required | Description |
+|---|---|---|
+| `VITE_API_URL` | ✅ Yes | Full API base URL, e.g. `https://garage-api.onrender.com/api` |
 
-### Frontend (run-time, if using the Nginx Docker image)
+---
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `BACKEND_HOST` | ❌ No | `backend:8080` | Backend host:port for the nginx `/api/` proxy |
+## Files That Changed
+
+| File | Change |
+|---|---|
+| `backend/src/main/resources/application-prod.properties` | Defaults point to TiDB Cloud (overridable via env vars) |
+| `deploy/README.md` | Deployment guide for TiDB + Render + Vercel |
+| `docker-compose.yml` | **Deleted** — was for a different project (ecommerce) |
 
 ---
 
 ## Production Checklist
 
-- [ ] **JWT secret** generated with `openssl rand -base64 48` or similar (min 32 chars)
-- [ ] **MySQL** running with utf8mb4, backed up regularly
-- [ ] **Frontend URL** correct in `APP_FRONTEND_URL` (CORS)
-- [ ] **HTTPS** configured via reverse proxy (Nginx/Caddy/Traefik) or Cloudflare
-- [ ] **`spring.jpa.hibernate.ddl-auto`** set to `validate` or `none` after initial deploy
-- [ ] **Backend** behind a reverse proxy if exposing directly to internet
-- [ ] **Database credentials** use a dedicated user with least privilege
-- [ ] **Logs** shipped to a central location (or use journald / Docker logs)
-- [ ] **Health check** endpoint: `GET /api/health` returns `{"status":"UP"}`
-- [ ] **Resource limits** set in Docker if containerised (`--memory`, `--cpus`)
+- [ ] **TiDB Cloud cluster** created and `garage_db` database created
+- [ ] **JWT secret** generated: `openssl rand -base64 48`
+- [ ] **APP_FRONTEND_URL** matches the actual Vercel deployment URL
+- [ ] **VITE_API_URL** on Vercel matches the actual Render backend URL
+- [ ] **Health check** passes: `GET /api/health` → `{"status":"UP"}`
+- [ ] **Login works** with default credentials
+- [ ] **CORS is working** — frontend can call backend without errors
+- [ ] **`spring.jpa.hibernate.ddl-auto`** set to `validate` after first deploy (optional safety)
 
 ---
 
-## Multi-Environment Strategy
+## Local Development (still works unchanged)
 
-```
-backend/src/main/resources/
-├── application.properties          # Base (shared defaults)
-├── application-dev.properties      # Local development
-├── application-prod.properties     # Production overrides (this project)
-└── application-staging.properties  # (optional)
-```
-
-Activate with:
 ```bash
-java -jar app.jar --spring.profiles.active=prod
+# Backend (H2 in-memory — no MySQL needed)
+cd backend
+mvn spring-boot:run          # http://localhost:8080
+
+# Frontend (separate terminal)
+cd frontend
+pnpm install
+pnpm dev                     # http://localhost:5173
 ```
 
-The Dockerfile sets `ENV SPRING_PROFILES_ACTIVE=prod`, so the production profile
-activates automatically in the container.
-
----
-
-## Default Users (created automatically)
-
-| Username | Password | Role |
-|---|---|---|
-| admin | admin123 | ADMIN |
-| storekeeper | storekeeper123 | STOREKEEPER |
-
-**Change these default passwords immediately after first login.**
+The production profile (`-Dspring.profiles.active=prod`) is only active on Render.
+Locally, the default `application.properties` still uses H2.
 
 ---
 
 ## Troubleshooting
 
-**Frontend can't reach backend (CORS)** → Check `APP_FRONTEND_URL` on backend side.
-**401 on all requests** → Check `APP_JWT_SECRET` is consistent.
-**Hibernate LazyInitializationException** → The prod profile has `spring.jpa.open-in-view=false`; review any lazy-loaded relations in service layer.
-**Connection refused to database** → Verify MySQL host, port, and that `garage_user` has access from the backend's IP.
+| Problem | Likely Cause | Fix |
+|---|---|---|
+| 401 on every request | JWT secret mismatch between deploys | Set `APP_JWT_SECRET` to a fixed value — never change it after users exist |
+| Backend can't connect to TiDB | IP restrictions or wrong SSL mode | TiDB Cloud Serverless allows all IPs by default. Ensure `ssl-mode=VERIFY_IDENTITY` in URL |
+| CORS error in browser | `APP_FRONTEND_URL` doesn't match | Must be the exact origin (with protocol, no trailing slash): `https://garage-inventory.vercel.app` |
+| Blank page on Vercel | SPA routing not set up | Vercel auto-detects Vite SPAs. Check Settings → Rewrites: `/*` → `/index.html` |
+| Hibernate tables not created | User lacks DDL privileges | Run `schema.sql` manually, set `ddl-auto=validate` |
+| Free tier cold start | Render spins down after inactivity | First request after idle takes ~30s. Upgrade to paid plan for always-on |
