@@ -8,4 +8,5 @@ export const partService = {
   create: (data: PartRequest) => api.post<Part>("/parts", data),
   update: (id: number, data: PartRequest) => api.put<Part>(`/parts/${id}`, data),
   delete: (id: number) => api.delete(`/parts/${id}`),
+  checkExists: (partNumber: string) => api.get<boolean>(`/parts/exists?partNumber=${encodeURIComponent(partNumber)}`),
 }

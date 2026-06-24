@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { jobCardService } from "@/services/jobCardService"
 import type { JobCardRequest } from "@/types"
@@ -7,12 +7,36 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Wrench, ArrowLeft } from "lucide-react"
+import { Wrench, ArrowLeft, RotateCcw } from "lucide-react"
 import { toast } from "sonner"
+import { useDocumentTitle } from "@/hooks/useDocumentTitle"
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
+
+const DRAFT_KEY = "job-card-draft"
+
+function loadDraft(): JobCardRequest | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore */ }
+  return null
+}
+
+function saveDraft(form: JobCardRequest) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(form))
+  } catch { /* ignore */ }
+}
+
+function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY)
+}
 
 export function JobCardFormPage() {
+  useDocumentTitle("New Job Card")
   const navigate = useNavigate()
   const [saving, setSaving] = useState(false)
+  const [showRestore, setShowRestore] = useState(false)
   const [form, setForm] = useState<JobCardRequest>({
     customerName: "",
     customerPhone: "",
@@ -21,11 +45,42 @@ export function JobCardFormPage() {
     requestedWork: "",
   })
 
+  // Check for existing draft on mount
+  useEffect(() => {
+    const draft = loadDraft()
+    if (draft && (draft.customerName || draft.requestedWork)) {
+      setShowRestore(true)
+    }
+  }, [])
+
+  const handleRestore = () => {
+    const draft = loadDraft()
+    if (draft) {
+      setForm(draft)
+      setShowRestore(false)
+      toast.success("Draft restored")
+    }
+  }
+
+  const handleDismissDraft = () => {
+    clearDraft()
+    setShowRestore(false)
+  }
+
+  const update = useCallback((field: keyof JobCardRequest, value: string) => {
+    setForm((prev) => {
+      const next = { ...prev, [field]: value }
+      saveDraft(next)
+      return next
+    })
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
     try {
       await jobCardService.create(form)
+      clearDraft()
       toast.success("Job card created")
       navigate("/jobs")
     } catch {
@@ -35,11 +90,9 @@ export function JobCardFormPage() {
     }
   }
 
-  const update = (field: keyof JobCardRequest, value: string) =>
-    setForm((prev) => ({ ...prev, [field]: value }))
-
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="space-y-6">
+      <Breadcrumbs segments={[{ label: "Job Cards", href: "/jobs" }, { label: "New Job Card" }]} />
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" onClick={() => navigate("/jobs")}>
           <ArrowLeft className="h-5 w-5" />
@@ -48,7 +101,26 @@ export function JobCardFormPage() {
         <h1 className="text-2xl font-bold tracking-tight">New Job Card</h1>
       </div>
 
-      <Card>
+      {showRestore && (
+        <Card className="max-w-2xl border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-2 text-sm">
+              <RotateCcw className="h-4 w-4 text-amber-600" />
+              <span>You have a saved draft from a previous session.</span>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={handleDismissDraft}>
+                Dismiss
+              </Button>
+              <Button size="sm" onClick={handleRestore}>
+                Restore Draft
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle>Customer & Vehicle Information</CardTitle>
         </CardHeader>

@@ -49,6 +49,34 @@ public class StockTransactionService {
         return StockTransactionResponse.fromEntity(tx);
     }
 
+    @Transactional
+    public StockTransactionResponse undoTransaction(Long transactionId, User user) {
+        StockTransaction tx = stockTransactionRepository.findById(transactionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found with id: " + transactionId));
+
+        Part part = tx.getPart();
+        if (tx.getType() == TransactionType.IN) {
+            // Reverse a stock in: subtract the quantity
+            if (part.getCurrentQuantity() < tx.getQuantity()) {
+                throw new BadRequestException("Cannot undo: insufficient stock. Available: "
+                        + part.getCurrentQuantity() + ", transaction quantity: " + tx.getQuantity());
+            }
+            part.setCurrentQuantity(part.getCurrentQuantity() - tx.getQuantity());
+        } else {
+            // Reverse a stock out: add back the quantity
+            part.setCurrentQuantity(part.getCurrentQuantity() + tx.getQuantity());
+        }
+        partRepository.save(part);
+
+        // Create a reversal transaction
+        TransactionType reversalType = tx.getType() == TransactionType.IN ? TransactionType.OUT : TransactionType.IN;
+        StockTransaction reversal = new StockTransaction(part, reversalType, tx.getQuantity(),
+                "Undo of transaction #" + transactionId + " (" + tx.getNote() + ")", user);
+        reversal = stockTransactionRepository.save(reversal);
+
+        return StockTransactionResponse.fromEntity(reversal);
+    }
+
     public List<StockTransactionResponse> getRecentTransactions() {
         return stockTransactionRepository.findTop10ByOrderByCreatedAtDesc().stream()
                 .map(StockTransactionResponse::fromEntity).toList();

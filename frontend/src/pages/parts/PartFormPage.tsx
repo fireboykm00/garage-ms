@@ -8,7 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Package, ArrowLeft } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
+import { useDocumentTitle } from "@/hooks/useDocumentTitle"
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
 
 export function PartFormPage() {
   const { id } = useParams()
@@ -28,6 +31,8 @@ export function PartFormPage() {
     currentQuantity: 0,
     minimumQuantity: 0,
   })
+
+  useDocumentTitle(isEdit ? "Edit Part" : "Add Part")
 
   useEffect(() => {
     if (isEdit) {
@@ -76,17 +81,63 @@ export function PartFormPage() {
     setForm((prev) => ({ ...prev, [field]: value }))
 
   if (loading) {
-    return <div className="flex justify-center py-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>
+    return (
+      <div className="mx-auto max-w-lg space-y-6">
+        <Breadcrumbs segments={[{ label: "Parts", href: "/parts" }, { label: "Edit Part" }]} />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-9 w-9 rounded-md" />
+          <Skeleton className="h-9 w-32" />
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-48" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/parts")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <Package className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold tracking-tight">{isEdit ? "Edit Part" : "Add Part"}</h1>
+      <Breadcrumbs segments={[
+        { label: "Parts", href: "/parts" },
+        { label: isEdit ? "Edit Part" : "Add Part" }
+      ]} />
+
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b pb-4 -mx-4 md:-mx-6 px-4 md:px-6">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/parts")}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <Package className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight">{isEdit ? "Edit Part" : "Add Part"}</h1>
+        </div>
       </div>
 
       <Card>
@@ -136,18 +187,9 @@ export function PartFormPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pcs">pcs</SelectItem>
-                  <SelectItem value="liter">liter</SelectItem>
-                  <SelectItem value="set">set</SelectItem>
-                  <SelectItem value="pair">pair</SelectItem>
-                  <SelectItem value="kg">kg</SelectItem>
-                  <SelectItem value="meter">meter</SelectItem>
-                  <SelectItem value="box">box</SelectItem>
-                  <SelectItem value="can">can</SelectItem>
-                  <SelectItem value="roll">roll</SelectItem>
-                  <SelectItem value="bottle">bottle</SelectItem>
-                  <SelectItem value="tube">tube</SelectItem>
-                  <SelectItem value="pack">pack</SelectItem>
+                  {["pcs","liter","set","pair","kg","meter","box","can","roll","bottle","tube","pack"].map((u) => (
+                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

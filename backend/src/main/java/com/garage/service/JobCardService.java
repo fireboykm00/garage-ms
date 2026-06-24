@@ -7,13 +7,16 @@ import com.garage.dto.job.JobCardResponse;
 import com.garage.exception.BadRequestException;
 import com.garage.exception.ResourceNotFoundException;
 import com.garage.model.JobCard;
+import com.garage.model.JobCardEvent;
 import com.garage.model.JobCardPart;
 import com.garage.model.Part;
 import com.garage.model.StockTransaction;
 import com.garage.model.User;
+import com.garage.model.enums.EventType;
 import com.garage.model.enums.JobCardStatus;
 import com.garage.model.enums.TransactionSourceType;
 import com.garage.model.enums.TransactionType;
+import com.garage.repository.JobCardEventRepository;
 import com.garage.repository.JobCardPartRepository;
 import com.garage.repository.JobCardRepository;
 import com.garage.repository.PartRepository;
@@ -25,7 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-
 @Service
 @RequiredArgsConstructor
 public class JobCardService {
@@ -33,9 +35,18 @@ public class JobCardService {
     private final JobCardPartRepository jobCardPartRepository;
     private final PartRepository partRepository;
     private final StockTransactionRepository stockTransactionRepository;
+    private final JobCardEventRepository jobCardEventRepository;
 
-    public List<JobCardResponse> getAllJobCards() {
-        return jobCardRepository.findAllByOrderByCreatedAtDesc().stream()
+    public List<JobCardResponse> getAllJobCards(String vehicleRegistration, String customerPhone) {
+        List<JobCard> results;
+        if (vehicleRegistration != null && !vehicleRegistration.isBlank()) {
+            results = jobCardRepository.findByVehicleRegistrationOrderByCreatedAtDesc(vehicleRegistration);
+        } else if (customerPhone != null && !customerPhone.isBlank()) {
+            results = jobCardRepository.findByCustomerPhoneOrderByCreatedAtDesc(customerPhone);
+        } else {
+            results = jobCardRepository.findAllByOrderByCreatedAtDesc();
+        }
+        return results.stream()
                 .map(JobCardResponse::fromEntity).toList();
     }
 
@@ -50,6 +61,11 @@ public class JobCardService {
         JobCard jobCard = new JobCard(jobNumber, request.getCustomerName(), request.getCustomerPhone(),
                 request.getVehicleRegistration(), request.getVehicleModel(), request.getRequestedWork(), user);
         jobCard = jobCardRepository.save(jobCard);
+
+        // Create event
+        jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.CREATED,
+                "Job card " + jobNumber + " created", user.getFullName()));
+
         return JobCardResponse.fromEntity(jobCard);
     }
 
@@ -64,26 +80,38 @@ public class JobCardService {
         jobCard.setRequestedWork(request.getRequestedWork());
         jobCard.setUpdatedAt(LocalDateTime.now());
         jobCard = jobCardRepository.save(jobCard);
+
+        jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.REPORT_UPDATED,
+                "Job card details updated", user.getFullName()));
+
         return JobCardResponse.fromEntity(jobCard);
     }
 
     @Transactional
-    public JobCardResponse updateTechnicalReport(Long id, String technicalReport) {
+    public JobCardResponse updateTechnicalReport(Long id, String technicalReport, User user) {
         JobCard jobCard = jobCardRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Job card not found with id: " + id));
         jobCard.setTechnicalReport(technicalReport);
         jobCard.setUpdatedAt(LocalDateTime.now());
         jobCard = jobCardRepository.save(jobCard);
+
+        jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.REPORT_UPDATED,
+                "Technical report updated", user.getFullName()));
+
         return JobCardResponse.fromEntity(jobCard);
     }
 
     @Transactional
-    public JobCardResponse updateWorkCompleted(Long id, String workCompleted) {
+    public JobCardResponse updateWorkCompleted(Long id, String workCompleted, User user) {
         JobCard jobCard = jobCardRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Job card not found with id: " + id));
         jobCard.setWorkCompleted(workCompleted);
         jobCard.setUpdatedAt(LocalDateTime.now());
         jobCard = jobCardRepository.save(jobCard);
+
+        jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.WORK_COMPLETED_UPDATED,
+                "Work completed details updated", user.getFullName()));
+
         return JobCardResponse.fromEntity(jobCard);
     }
 
@@ -96,6 +124,9 @@ public class JobCardService {
         jobCard.setStatus(status);
         jobCard.setUpdatedAt(LocalDateTime.now());
         jobCard = jobCardRepository.save(jobCard);
+
+        jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.STATUS_CHANGED,
+                "Status changed from " + oldStatus + " to " + status, user.getFullName()));
 
         if (status == JobCardStatus.CANCELLED && oldStatus != JobCardStatus.CANCELLED) {
             restorePartsOnCancel(jobCard, user);
@@ -160,6 +191,10 @@ public class JobCardService {
 
         JobCardPart jcp = new JobCardPart(jobCard, part, request.getQuantity());
         jcp = jobCardPartRepository.save(jcp);
+
+        jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.PART_ADDED,
+                request.getQuantity() + "x " + part.getName() + " (" + part.getPartNumber() + ") added", user.getFullName()));
+
         return JobCardPartResponse.fromEntity(jcp);
     }
 
@@ -169,6 +204,13 @@ public class JobCardService {
         }
         return jobCardPartRepository.findByJobCardId(jobCardId).stream()
                 .map(JobCardPartResponse::fromEntity).toList();
+    }
+
+    public List<JobCardEvent> getEvents(Long jobCardId) {
+        if (!jobCardRepository.existsById(jobCardId)) {
+            throw new ResourceNotFoundException("Job card not found with id: " + jobCardId);
+        }
+        return jobCardEventRepository.findByJobCardIdOrderByCreatedAtAsc(jobCardId);
     }
 
     private String generateJobNumber() {

@@ -29,6 +29,10 @@ public class PartService {
         return partRepository.findLowStockParts().stream().map(PartResponse::fromEntity).toList();
     }
 
+    public boolean existsByPartNumber(String partNumber) {
+        return partRepository.existsByPartNumber(partNumber);
+    }
+
     @Transactional
     public PartResponse createPart(PartRequest request) {
         Part part = new Part(request.getPartNumber(), request.getName(), request.getModel(),

@@ -4,12 +4,14 @@ import type { RemainingStockReport } from "@/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ClipboardList, Download, Search } from "lucide-react"
+import { ClipboardList, Download, Search, BarChart3 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import ExcelJS from "exceljs"
-
+import { useDocumentTitle } from "@/hooks/useDocumentTitle"
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
 export function RemainingStockReportPage() {
+  useDocumentTitle("Remaining Stock Report")
   const [reports, setReports] = useState<RemainingStockReport[]>([])
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
@@ -29,6 +31,12 @@ export function RemainingStockReportPage() {
     )
   }, [reports, search])
 
+  const totalParts = reports.length
+  const totalStockOut = useMemo(() =>
+    reports.reduce((sum, r) => sum + (r.stockOut || 0), 0),
+    [reports]
+  )
+
   useEffect(() => {
     reportService.getRemainingStockReport()
       .then((res) => setReports(res.data))
@@ -40,31 +48,42 @@ export function RemainingStockReportPage() {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet("Remaining Stock")
 
+    // Title row
     ws.mergeCells(1, 1, 1, 10)
     const titleRow = ws.getRow(1)
-    titleRow.getCell(1).value = "REMAINING STOCK REPORT"
-    titleRow.getCell(1).font = { bold: true, size: 16 }
+    titleRow.getCell(1).value = "GARAGE INVENTORY — Remaining Stock Report"
+    titleRow.getCell(1).font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } }
     titleRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" }
-    titleRow.height = 36
+    titleRow.height = 40
+    for (let c = 1; c <= 10; c++) {
+      ws.getCell(1, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1a365d" } }
+    }
 
+    // Header row
     const headers = [
       "ITEM NO.", "OUR PART NUMBER", "PART NUMBER", "DESCRIPTION",
-      "MODELS", "MANUFACTURER", "LOCATIONS", "WEREHOUSES",
+      "MODELS", "MANUFACTURER", "LOCATIONS", "WAREHOUSES",
       "QUANTITY", "STOCK OUT"
     ]
     const headerRow = ws.addRow(headers)
-    headerRow.font = { bold: true, size: 13 }
-    headerRow.alignment = { horizontal: "center", vertical: "middle" }
-    headerRow.height = 30
+    for (let c = 1; c <= headers.length; c++) {
+      const cell = headerRow.getCell(c)
+      cell.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } }
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1a365d" } }
+      cell.alignment = { horizontal: "center", vertical: "middle" }
+      cell.border = {
+        top: { style: "thin" }, left: { style: "thin" },
+        bottom: { style: "thin" }, right: { style: "thin" }
+      }
+    }
+    headerRow.height = 28
 
-    const colWidths = [6, 16, 16, 28, 22, 16, 10, 10, 9, 9]
-    colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w })
-
+    // Data rows
     reports.forEach((r, i) => {
       const row = ws.addRow([
         i + 1, r.ourPartNumber || "", r.partNumber, r.name,
         r.model || "", r.manufacturer || "", r.location || "",
-        r.warehouse || "", r.currentQuantity, r.stockOut
+        r.warehouse || "", r.currentQuantity, r.stockOut || 0,
       ])
       row.alignment = { vertical: "middle" }
       row.eachCell((cell) => {
@@ -72,19 +91,25 @@ export function RemainingStockReportPage() {
           top: { style: "thin" }, left: { style: "thin" },
           bottom: { style: "thin" }, right: { style: "thin" }
         }
+        cell.font = { size: 11 }
       })
     })
+
+    // Auto-width
+    const colWidths = [8, 16, 18, 30, 22, 18, 12, 12, 10, 10]
+    colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w })
 
     const buf = await wb.xlsx.writeBuffer()
     const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
-    a.href = url; a.download = "remaining-stock.xlsx"; a.click()
+    a.href = url; a.download = "remaining-stock-report.xlsx"; a.click()
     URL.revokeObjectURL(url)
   }
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs segments={[{ label: "Reports", href: "#" }, { label: "Remaining Stock" }]} />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <ClipboardList className="h-6 w-6 text-primary" />
@@ -94,6 +119,20 @@ export function RemainingStockReportPage() {
           <Download className="mr-1 h-4 w-4" /> XLSX
         </Button>
       </div>
+
+      {/* Summary bar */}
+      <Card className="bg-primary/5 border-primary/20">
+        <CardContent className="flex items-center gap-4 py-3">
+          <BarChart3 className="h-5 w-5 text-primary" />
+          <span className="text-sm">
+            <strong>Total Parts:</strong> {totalParts}
+          </span>
+          <span className="text-sm text-muted-foreground">|</span>
+          <span className="text-sm">
+            <strong>Total Stock Out:</strong> {totalStockOut.toLocaleString()}
+          </span>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -118,42 +157,42 @@ export function RemainingStockReportPage() {
                 />
               </div>
               <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="pb-2 font-medium">ITEM NO.</th>
-                    <th className="pb-2 font-medium">OUR PART NUMBER</th>
-                    <th className="pb-2 font-medium">PART NUMBER</th>
-                    <th className="pb-2 font-medium">DESCRIPTION</th>
-                    <th className="pb-2 font-medium">MODELS</th>
-                    <th className="pb-2 font-medium">MANUFACTURER</th>
-                    <th className="pb-2 font-medium">LOCATIONS</th>
-                    <th className="pb-2 font-medium">WEREHOUSES</th>
-                    <th className="pb-2 font-medium">QUANTITY</th>
-                    <th className="pb-2 font-medium">STOCK OUT</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r, idx) => (
-                    <tr key={r.id} className="border-b last:border-0">
-                      <td className="py-2 text-muted-foreground">{idx + 1}</td>
-                      <td className="py-2 font-mono text-xs">{r.ourPartNumber || ""}</td>
-                      <td className="py-2 font-mono text-xs">{r.partNumber}</td>
-                      <td className="py-2">{r.name}</td>
-                      <td className="py-2">{r.model || "-"}</td>
-                      <td className="py-2">{r.manufacturer || "-"}</td>
-                      <td className="py-2">{r.location || "-"}</td>
-                      <td className="py-2">{r.warehouse || "-"}</td>
-                      <td className="py-2 font-medium">{r.currentQuantity}</td>
-                      <td className="py-2">{r.stockOut}</td>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-2 font-medium">ITEM NO.</th>
+                      <th className="pb-2 font-medium">OUR PART NUMBER</th>
+                      <th className="pb-2 font-medium">PART NUMBER</th>
+                      <th className="pb-2 font-medium">DESCRIPTION</th>
+                      <th className="pb-2 font-medium">MODELS</th>
+                      <th className="pb-2 font-medium">MANUFACTURER</th>
+                      <th className="pb-2 font-medium">LOCATIONS</th>
+                      <th className="pb-2 font-medium">WAREHOUSES</th>
+                      <th className="pb-2 font-medium">QUANTITY</th>
+                      <th className="pb-2 font-medium">STOCK OUT</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              {filtered.length === 0 && (
-                <p className="py-4 text-center text-sm text-muted-foreground">No records match your search.</p>
-              )}
-            </div>
+                  </thead>
+                  <tbody>
+                    {filtered.map((r, idx) => (
+                      <tr key={r.id} className="border-b last:border-0">
+                        <td className="py-2 text-muted-foreground">{idx + 1}</td>
+                        <td className="py-2 font-mono text-xs">{r.ourPartNumber || ""}</td>
+                        <td className="py-2 font-mono text-xs">{r.partNumber}</td>
+                        <td className="py-2">{r.name}</td>
+                        <td className="py-2">{r.model || "-"}</td>
+                        <td className="py-2">{r.manufacturer || "-"}</td>
+                        <td className="py-2">{r.location || "-"}</td>
+                        <td className="py-2">{r.warehouse || "-"}</td>
+                        <td className="py-2 font-medium">{r.currentQuantity}</td>
+                        <td className="py-2">{r.stockOut || 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {filtered.length === 0 && (
+                  <p className="py-4 text-center text-sm text-muted-foreground">No records match your search.</p>
+                )}
+              </div>
             </div>
           )}
         </CardContent>

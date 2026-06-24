@@ -27,7 +27,6 @@ public class StockTransactionController {
     public ResponseEntity<StockTransactionResponse> stockIn(
             @Valid @RequestBody StockInRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
-        Long userId = ((UserDetailsImpl) userDetails).getId();
         return ResponseEntity.ok(stockTransactionService.stockIn(request, authService.getCurrentUserInfo()));
     }
 
@@ -37,6 +36,14 @@ public class StockTransactionController {
             @Valid @RequestBody StockOutRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(stockTransactionService.stockOut(request, authService.getCurrentUserInfo()));
+    }
+
+    @PostMapping("/undo/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STOREKEEPER')")
+    public ResponseEntity<StockTransactionResponse> undoTransaction(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(stockTransactionService.undoTransaction(id, authService.getCurrentUserInfo()));
     }
 
     @GetMapping("/transactions")

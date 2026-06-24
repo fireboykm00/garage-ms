@@ -35,7 +35,7 @@ function AppRoutes() {
         <Route path="/parts/new" element={<PartFormPage />} />
         <Route path="/parts/:id/edit" element={<PartFormPage />} />
         <Route path="/stock/in" element={<StockInPage />} />
-        <Route path="/stock/out" element={<StockOutPage />} />
+        <Route path="/stock/out" element={<AdminRoute><StockOutPage /></AdminRoute>} />
         <Route path="/reports/stock-out" element={<StockOutReportPage />} />
         <Route path="/reports/remaining-stock" element={<RemainingStockReportPage />} />
         <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />

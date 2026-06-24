@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Package, Plus, Pencil, Trash2, Search } from "lucide-react"
+import { Package, Plus, Pencil, Trash2, Search, AlertTriangle } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   AlertDialog,
@@ -21,8 +21,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
+import { useDocumentTitle } from "@/hooks/useDocumentTitle"
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
 
 export function PartsPage() {
+  useDocumentTitle("Parts")
   const { isAdmin, isStorekeeper } = useAuth()
   const [parts, setParts] = useState<Part[]>([])
   const [search, setSearch] = useState("")
@@ -66,18 +69,22 @@ export function PartsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Package className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold tracking-tight">Parts</h1>
+      <Breadcrumbs segments={[{ label: "Parts" }]} />
+
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b pb-4 pt-2 -mx-4 md:-mx-6 px-4 md:px-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Package className="h-6 w-6 text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight">Parts</h1>
+          </div>
+          {canEdit && (
+            <Button asChild>
+              <Link to="/parts/new">
+                <Plus className="mr-1 h-4 w-4" /> Add Part
+              </Link>
+            </Button>
+          )}
         </div>
-        {canEdit && (
-          <Button asChild>
-            <Link to="/parts/new">
-              <Plus className="mr-1 h-4 w-4" /> Add Part
-            </Link>
-          </Button>
-        )}
       </div>
 
       <div className="relative">
@@ -106,53 +113,64 @@ export function PartsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Package className="mb-4 h-12 w-12 text-muted-foreground" />
-            <p className="text-muted-foreground">No parts registered yet.</p>
+            <h3 className="text-lg font-semibold mb-1">No parts yet</h3>
+            <p className="text-sm text-muted-foreground mb-4">Get started by adding your first part.</p>
             {canEdit && (
-              <Button asChild className="mt-4">
+              <Button asChild>
                 <Link to="/parts/new">Add Your First Part</Link>
               </Button>
             )}
           </CardContent>
         </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Search className="mb-4 h-12 w-12 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-1">No matching parts</h3>
+            <p className="text-sm text-muted-foreground">Try a different search term.</p>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="pb-2 font-medium">Our Part No.</th>
-                <th className="pb-2 font-medium">Part Number</th>
-                <th className="pb-2 font-medium">Description</th>
-                <th className="pb-2 font-medium">Model</th>
-                <th className="pb-2 font-medium">Manufacturer</th>
-                <th className="pb-2 font-medium">Location</th>
-                <th className="pb-2 font-medium">Warehouse</th>
-                <th className="pb-2 font-medium">Qty</th>
-                <th className="pb-2 font-medium">Status</th>
-                {canEdit && <th className="pb-2 font-medium">Actions</th>}
+              <tr className="border-b bg-muted/50 text-left text-muted-foreground">
+                <th className="p-3 font-medium">Our Part No.</th>
+                <th className="p-3 font-medium">Part Number</th>
+                <th className="p-3 font-medium">Description</th>
+                <th className="p-3 font-medium">Model</th>
+                <th className="p-3 font-medium">Manufacturer</th>
+                <th className="p-3 font-medium">Location</th>
+                <th className="p-3 font-medium">Warehouse</th>
+                <th className="p-3 font-medium">Qty</th>
+                <th className="p-3 font-medium">Status</th>
+                {canEdit && <th className="p-3 font-medium">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.map((part) => (
                 <tr key={part.id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="py-2 font-mono text-xs">{part.ourPartNumber || ""}</td>
-                  <td className="py-2 font-mono text-xs">{part.partNumber}</td>
-                  <td className="py-2">{part.name}</td>
-                  <td className="py-2 text-muted-foreground">{part.model || "-"}</td>
-                  <td className="py-2">{part.manufacturer || "-"}</td>
-                  <td className="py-2 text-muted-foreground">{part.location || "-"}</td>
-                  <td className="py-2">{part.warehouse || "-"}</td>
-                  <td className={`py-2 font-medium ${part.currentQuantity <= part.minimumQuantity ? "text-red-600" : ""}`}>
+                  <td className="p-3 font-mono text-xs">{part.ourPartNumber || ""}</td>
+                  <td className="p-3 font-mono text-xs">{part.partNumber}</td>
+                  <td className="p-3">{part.name}</td>
+                  <td className="p-3 text-muted-foreground">{part.model || "-"}</td>
+                  <td className="p-3">{part.manufacturer || "-"}</td>
+                  <td className="p-3 text-muted-foreground">{part.location || "-"}</td>
+                  <td className="p-3">{part.warehouse || "-"}</td>
+                  <td className={`p-3 font-medium ${part.currentQuantity <= part.minimumQuantity ? "text-destructive" : ""}`}>
                     {part.currentQuantity} {part.unit}
                   </td>
-                  <td className="py-2">
+                  <td className="p-3">
                     {part.currentQuantity <= part.minimumQuantity ? (
-                      <Badge variant="destructive">Low</Badge>
+                      <Badge variant="destructive" className="gap-1">
+                        <AlertTriangle className="h-3 w-3" /> Low
+                      </Badge>
                     ) : (
                       <Badge variant="default">OK</Badge>
                     )}
                   </td>
                   {canEdit && (
-                    <td className="py-2">
+                    <td className="p-3">
                       <div className="flex gap-1">
                         <Button asChild variant="outline" size="sm">
                           <Link to={`/parts/${part.id}/edit`}>

@@ -22,6 +22,11 @@ public class PartController {
         return ResponseEntity.ok(partService.getAllParts());
     }
 
+    @GetMapping("/exists")
+    public ResponseEntity<Boolean> checkPartNumberExists(@RequestParam String partNumber) {
+        return ResponseEntity.ok(partService.existsByPartNumber(partNumber));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<PartResponse> getPartById(@PathVariable Long id) {
         return ResponseEntity.ok(partService.getPartById(id));
