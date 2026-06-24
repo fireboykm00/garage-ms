@@ -15,7 +15,7 @@ import { StockOutPage } from "@/pages/stock/StockOutPage"
 import { StockOutReportPage } from "@/pages/reports/StockOutReportPage"
 import { RemainingStockReportPage } from "@/pages/reports/RemainingStockReportPage"
 import { AdminUsersPage } from "@/pages/users/AdminUsersPage"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/hooks/useAuth"
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAdmin, isAuthenticated } = useAuth()

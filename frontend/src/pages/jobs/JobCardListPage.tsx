@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { Link } from "react-router-dom"
 import { jobCardService } from "@/services/jobCardService"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/hooks/useAuth"
 import type { JobCard, JobCardStatus } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,17 +43,6 @@ const statusConfig: Record<JobCardStatus, { label: string; color: string; bg: st
 }
 
 const kolommen: JobCardStatus[] = ["OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"]
-
-function getAgeLabel(createdAt: string): { label: string; variant: "default" | "secondary" | "destructive" | "outline" } | null {
-  const now = Date.now()
-  const created = new Date(createdAt).getTime()
-  const diffMs = now - created
-  const diffH = diffMs / (1000 * 60 * 60)
-  if (diffH < 1) return { label: "new", variant: "default" }
-  if (diffH > 24) return { label: `⚠ ${Math.floor(diffH / 24)}d`, variant: "destructive" }
-  if (diffH > 4) return { label: `⚠ ${Math.floor(diffH)}h`, variant: "secondary" }
-  return null
-}
 
 export function JobCardListPage() {
   useDocumentTitle("Job Cards")
@@ -120,15 +109,6 @@ export function JobCardListPage() {
       setJobs(res.data)
     } catch {
       toast.error("Failed to update status")
-    }
-  }
-
-  const getStatusVariant = (status: JobCardStatus): "default" | "secondary" | "outline" | "destructive" => {
-    switch (status) {
-      case "OPEN": return "secondary"
-      case "IN_PROGRESS": return "default"
-      case "COMPLETED": return "outline"
-      case "CANCELLED": return "destructive"
     }
   }
 
@@ -242,11 +222,6 @@ export function JobCardListPage() {
                         <CardHeader className="pb-1 px-3 pt-3">
                           <div className="flex items-start justify-between">
                             <CardTitle className="text-xs font-mono">{job.jobNumber}</CardTitle>
-                            {getAgeLabel(job.createdAt) && (
-                              <Badge variant={getAgeLabel(job.createdAt)!.variant} className="text-[10px] px-1 py-0 h-4">
-                                {getAgeLabel(job.createdAt)!.label}
-                              </Badge>
-                            )}
                           </div>
                         </CardHeader>
                         <CardContent className="px-3 pb-3">
@@ -277,31 +252,35 @@ export function JobCardListPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <CardTitle className="text-base font-mono">{job.jobNumber}</CardTitle>
-                      <Badge variant={getStatusVariant(job.status)}>
-                        {statusConfig[job.status]?.label || job.status.replace("_", " ")}
-                      </Badge>
-                      {getAgeLabel(job.createdAt) && (
-                        <Badge variant={getAgeLabel(job.createdAt)!.variant} className="text-[10px] px-1.5 py-0 h-5">
-                          {getAgeLabel(job.createdAt)!.label}
-                        </Badge>
-                      )}
+                      <span className={`text-xs font-medium ${statusConfig[job.status].color}`}>
+                        {statusConfig[job.status].label}
+                      </span>
                     </div>
                     <div onClick={(e) => e.preventDefault()} className="shrink-0">
-                      <Select
-                        value={job.status}
-                        onValueChange={(v) => handleQuickStatus(job.id, v as JobCardStatus)}
-                      >
-                        <SelectTrigger className="h-7 w-32 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {kolommen.map((s) => (
-                            <SelectItem key={s} value={s} className="text-xs">
-                              → {statusConfig[s].label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {job.status === "COMPLETED" || job.status === "CANCELLED" ? (
+                        <span className={`text-xs font-semibold ${statusConfig[job.status].color}`}>
+                          {statusConfig[job.status].label}
+                        </span>
+                      ) : (
+                        <Select
+                          value={job.status}
+                          onValueChange={(v) => handleQuickStatus(job.id, v as JobCardStatus)}
+                        >
+                          <SelectTrigger className="h-7 w-32 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(job.status === "OPEN"
+                              ? ["IN_PROGRESS", "CANCELLED"]
+                              : ["COMPLETED", "CANCELLED"]
+                            ).map((s) => (
+                              <SelectItem key={s} value={s} className="text-xs">
+                                {statusConfig[s as JobCardStatus].label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                   </div>
                 </CardHeader>

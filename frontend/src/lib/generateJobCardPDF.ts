@@ -161,7 +161,7 @@ export function generateJobCardPDF(job: JobCard, parts: JobCardPart[]) {
       theme: "grid",
     })
 
-    y = (doc as any).lastAutoTable.finalY + 10
+    y = (doc as any).lastAutoTable.finalY + 10 // eslint-disable-line @typescript-eslint/no-explicit-any
   }
 
   if (y > 260) {

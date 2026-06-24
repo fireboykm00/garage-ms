@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/hooks/useAuth"
 import { partService } from "@/services/partService"
 import { stockService } from "@/services/stockService"
 import type { Part, Stock } from "@/types"
@@ -40,17 +40,27 @@ export function StockDetailPage() {
 
   useEffect(() => {
     if (!stockId) return
-    setLoading(true)
+
+    let cancelled = false
+
     Promise.all([
       stockService.getById(Number(stockId)),
       stockService.getParts(Number(stockId)),
     ])
       .then(([stockRes, partsRes]) => {
+        if (cancelled) return
         setStock(stockRes.data)
         setParts(partsRes.data)
+        setLoading(false)
       })
-      .catch(() => toast.error("Failed to load stock details"))
-      .finally(() => setLoading(false))
+      .catch(() => {
+        if (!cancelled) {
+          toast.error("Failed to load stock details")
+          setLoading(false)
+        }
+      })
+
+    return () => { cancelled = true }
   }, [stockId])
 
   const filtered = useMemo(() => {
@@ -167,32 +177,32 @@ export function StockDetailPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-muted/50 text-left text-muted-foreground">
-                <th className="p-3 font-medium">Our Part No.</th>
-                <th className="p-3 font-medium">Part Number</th>
-                <th className="p-3 font-medium">Description</th>
-                <th className="p-3 font-medium">Model</th>
-                <th className="p-3 font-medium">Manufacturer</th>
-                <th className="p-3 font-medium">Balance</th>
-                <th className="p-3 font-medium">Status</th>
-                {canEdit && <th className="p-3 font-medium">Actions</th>}
+              <tr className="border-b text-left text-muted-foreground">
+                <th className="pb-2 font-medium">OUR PART NO.</th>
+                <th className="pb-2 font-medium">PART NUMBER</th>
+                <th className="pb-2 font-medium">DESCRIPTION</th>
+                <th className="pb-2 font-medium">MODEL</th>
+                <th className="pb-2 font-medium">MANUFACTURER</th>
+                <th className="pb-2 font-medium">BALANCE</th>
+                <th className="pb-2 font-medium">STATUS</th>
+                {canEdit && <th className="pb-2 font-medium">ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.map((part) => (
-                <tr key={part.id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="p-3 font-mono text-xs">{part.ourPartNumber || ""}</td>
-                  <td className="p-3 font-mono text-xs">{part.partNumber}</td>
-                  <td className="p-3">{part.name}</td>
-                  <td className="p-3 text-muted-foreground">{part.model || "-"}</td>
-                  <td className="p-3">{part.manufacturer || "-"}</td>
-                  <td className={`p-3 font-medium ${part.currentQuantity <= part.minimumQuantity ? "text-destructive" : ""}`}>
+                <tr key={part.id} className="border-b last:border-0">
+                  <td className="py-2 font-mono text-xs">{part.ourPartNumber || ""}</td>
+                  <td className="py-2 font-mono text-xs">{part.partNumber}</td>
+                  <td className="py-2">{part.name}</td>
+                  <td className="py-2 text-muted-foreground">{part.model || "-"}</td>
+                  <td className="py-2">{part.manufacturer || "-"}</td>
+                  <td className={`py-2 font-medium ${part.currentQuantity <= part.minimumQuantity ? "text-destructive" : ""}`}>
                     {part.currentQuantity} {part.unit}
                   </td>
-                  <td className="p-3">
+                  <td className="py-2">
                     {part.currentQuantity <= part.minimumQuantity ? (
                       <Badge variant="destructive" className="gap-1">
                         <AlertTriangle className="h-3 w-3" /> Low
@@ -202,7 +212,7 @@ export function StockDetailPage() {
                     )}
                   </td>
                   {canEdit && (
-                    <td className="p-3">
+                    <td className="py-2">
                       <div className="flex gap-1">
                         <Button asChild variant="outline" size="sm">
                           <Link to={`/stocks/${stock.id}/parts/${part.id}/edit`}>

@@ -1,7 +1,6 @@
 package com.garage.service;
 
 import com.garage.dto.job.AddPartRequest;
-import com.garage.dto.job.ReplacePartRequest;
 import com.garage.dto.job.JobCardPartResponse;
 import com.garage.dto.job.JobCardRequest;
 import com.garage.dto.job.JobCardResponse;
@@ -84,6 +83,7 @@ public class JobCardService {
     public JobCardResponse updateJobCard(Long id, JobCardRequest request, User user) {
         JobCard jobCard = jobCardRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Job card not found with id: " + id));
+        validateActiveStatus(jobCard);
         jobCard.setCustomerName(request.getCustomerName());
         jobCard.setCustomerPhone(request.getCustomerPhone());
         jobCard.setVehicleRegistration(request.getVehicleRegistration());
@@ -102,6 +102,7 @@ public class JobCardService {
     public JobCardResponse updateTechnicalReport(Long id, String technicalReport, User user) {
         JobCard jobCard = jobCardRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Job card not found with id: " + id));
+        validateActiveStatus(jobCard);
         jobCard.setTechnicalReport(technicalReport);
         jobCard.setUpdatedAt(LocalDateTime.now());
         jobCard = jobCardRepository.save(jobCard);
@@ -116,6 +117,7 @@ public class JobCardService {
     public JobCardResponse updateWorkCompleted(Long id, String workCompleted, User user) {
         JobCard jobCard = jobCardRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Job card not found with id: " + id));
+        validateActiveStatus(jobCard);
         jobCard.setWorkCompleted(workCompleted);
         jobCard.setUpdatedAt(LocalDateTime.now());
         jobCard = jobCardRepository.save(jobCard);
@@ -132,6 +134,20 @@ public class JobCardService {
                 .orElseThrow(() -> new ResourceNotFoundException("Job card not found with id: " + id));
         JobCardStatus oldStatus = jobCard.getStatus();
 
+        // Validate status transitions
+        if (oldStatus == status) {
+            return JobCardResponse.fromEntity(jobCard); // no-op, return early
+        }
+        boolean validTransition = switch (oldStatus) {
+            case OPEN -> status == JobCardStatus.IN_PROGRESS || status == JobCardStatus.CANCELLED;
+            case IN_PROGRESS -> status == JobCardStatus.COMPLETED || status == JobCardStatus.CANCELLED;
+            case COMPLETED -> status == JobCardStatus.OPEN; // reopen
+            case CANCELLED -> status == JobCardStatus.OPEN; // reopen
+        };
+        if (!validTransition) {
+            throw new BadRequestException("Cannot transition from " + oldStatus + " to " + status);
+        }
+
         jobCard.setStatus(status);
         jobCard.setUpdatedAt(LocalDateTime.now());
         jobCard = jobCardRepository.save(jobCard);
@@ -146,6 +162,12 @@ public class JobCardService {
         }
 
         return JobCardResponse.fromEntity(jobCard);
+    }
+
+    private void validateActiveStatus(JobCard jobCard) {
+        if (jobCard.getStatus() == JobCardStatus.COMPLETED || jobCard.getStatus() == JobCardStatus.CANCELLED) {
+            throw new BadRequestException("Cannot modify a " + jobCard.getStatus().name().toLowerCase() + " job card");
+        }
     }
 
     private void restorePartsOnCancel(JobCard jobCard, User user) {
@@ -185,6 +207,7 @@ public class JobCardService {
     public JobCardPartResponse addPart(Long jobCardId, AddPartRequest request, User user) {
         JobCard jobCard = jobCardRepository.findById(jobCardId)
                 .orElseThrow(() -> new ResourceNotFoundException("Job card not found with id: " + jobCardId));
+        validateActiveStatus(jobCard);
         Part part = partRepository.findById(request.getPartId())
                 .orElseThrow(() -> new ResourceNotFoundException("Part not found with id: " + request.getPartId()));
 
@@ -217,6 +240,7 @@ public class JobCardService {
     public void removePart(Long jobCardId, Long jobCardPartId, User user) {
         JobCard jobCard = jobCardRepository.findById(jobCardId)
                 .orElseThrow(() -> new ResourceNotFoundException("Job card not found with id: " + jobCardId));
+        validateActiveStatus(jobCard);
         JobCardPart jcp = jobCardPartRepository.findByIdAndJobCardId(jobCardPartId, jobCardId)
                 .orElseThrow(() -> new ResourceNotFoundException("Job card part not found with id: " + jobCardPartId));
 
@@ -232,49 +256,6 @@ public class JobCardService {
                 jcp.getQuantity() + "x " + part.getName() + " (" + part.getPartNumber() + ") removed", user.getFullName()));
 
         jobCardPartRepository.delete(jcp);
-    }
-
-    @Transactional
-    public JobCardPartResponse replacePart(Long jobCardId, Long jobCardPartId, ReplacePartRequest request, User user) {
-        JobCard jobCard = jobCardRepository.findById(jobCardId)
-                .orElseThrow(() -> new ResourceNotFoundException("Job card not found with id: " + jobCardId));
-        JobCardPart oldJcp = jobCardPartRepository.findByIdAndJobCardId(jobCardPartId, jobCardId)
-                .orElseThrow(() -> new ResourceNotFoundException("Job card part not found with id: " + jobCardPartId));
-
-        Part oldPart = oldJcp.getPart();
-        oldPart.setCurrentQuantity(oldPart.getCurrentQuantity() + oldJcp.getQuantity());
-        partRepository.save(oldPart);
-
-        StockTransaction inTx = new StockTransaction(oldPart, TransactionType.IN, oldJcp.getQuantity(),
-                "Replaced from " + jobCard.getJobNumber(), TransactionSourceType.JOB_CARD, jobCard.getJobNumber(), user);
-        stockTransactionRepository.save(inTx);
-
-        Part newPart = partRepository.findById(request.getNewPartId())
-                .orElseThrow(() -> new ResourceNotFoundException("Part not found with id: " + request.getNewPartId()));
-
-        if (newPart.getCurrentQuantity() < request.getQuantity()) {
-            throw new BadRequestException("Insufficient stock for " + newPart.getPartNumber()
-                    + ". Available: " + newPart.getCurrentQuantity() + ", requested: " + request.getQuantity());
-        }
-
-        newPart.setCurrentQuantity(newPart.getCurrentQuantity() - request.getQuantity());
-        partRepository.save(newPart);
-
-        StockTransaction outTx = new StockTransaction(newPart, TransactionType.OUT, request.getQuantity(),
-                "Used on " + jobCard.getJobNumber(), TransactionSourceType.JOB_CARD, jobCard.getJobNumber(), user);
-        stockTransactionRepository.save(outTx);
-
-        JobCardPart newJcp = new JobCardPart(jobCard, newPart, request.getQuantity());
-        newJcp = jobCardPartRepository.save(newJcp);
-
-        jobCardPartRepository.delete(oldJcp);
-
-        String eventDesc = String.format("Replaced %dx %s (%s) with %dx %s (%s)",
-                oldJcp.getQuantity(), oldPart.getName(), oldPart.getPartNumber(),
-                request.getQuantity(), newPart.getName(), newPart.getPartNumber());
-        jobCardEventRepository.save(new JobCardEvent(jobCard, EventType.PART_REPLACED, eventDesc, user.getFullName()));
-
-        return JobCardPartResponse.fromEntity(newJcp);
     }
 
     public List<JobCardPartResponse> getParts(Long jobCardId) {

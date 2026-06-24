@@ -217,8 +217,3 @@ export interface AddPartRequest {
   partId: number
   quantity: number
 }
-
-export interface ReplacePartRequest {
-  newPartId: number
-  quantity: number
-}

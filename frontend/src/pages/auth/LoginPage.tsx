@@ -1,12 +1,12 @@
 import { useState } from "react"
 import { useNavigate, Navigate } from "react-router-dom"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/hooks/useAuth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Wrench, AlertCircle } from "lucide-react"
-import { AxiosError } from "axios"
+import { normalizeError } from "@/lib/errors"
 
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth()
@@ -37,27 +37,17 @@ export function LoginPage() {
       await login({ username, password })
       navigate("/dashboard")
     } catch (err: unknown) {
-      if (err instanceof AxiosError && err.response?.data?.message) {
-        const msg = err.response.data.message as string
-        if (msg.toLowerCase().includes("bad credentials") || msg.toLowerCase().includes("invalid credentials")) {
-          setError("Invalid username or password")
-        } else {
-          setError(msg)
-        }
-      } else if (err instanceof AxiosError && !err.response) {
+      const normalized = normalizeError(err)
+      if (normalized.status === 401 || normalized.message.toLowerCase().includes("invalid")) {
+        setError("Invalid username or password")
+      } else if (normalized.isNetworkError) {
         setError("Connection failed. Make sure the server is running.")
       } else {
-        setError("An unexpected error occurred")
+        setError(normalized.message)
       }
     } finally {
       setLoading(false)
     }
-  }
-
-  const fillDemo = (user: string, pass: string) => {
-    setUsername(user)
-    setPassword(pass)
-    setFieldErrors({})
   }
 
   return (
@@ -100,23 +90,6 @@ export function LoginPage() {
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
-          <div className="mt-6 rounded-md bg-muted p-3">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">Demo Credentials</p>
-            <div className="space-y-1 text-xs">
-              <button type="button" className="block w-full text-left hover:text-primary" onClick={() => fillDemo("admin", "admin123")}>
-                Admin: <code className="rounded bg-background px-1">admin / admin123</code>
-              </button>
-              <button type="button" className="block w-full text-left hover:text-primary" onClick={() => fillDemo("storekeeper", "storekeeper123")}>
-                Storekeeper: <code className="rounded bg-background px-1">storekeeper / storekeeper123</code>
-              </button>
-              <button type="button" className="block w-full text-left hover:text-primary" onClick={() => fillDemo("mechanic", "mechanic123")}>
-                Mechanic: <code className="rounded bg-background px-1">mechanic / mechanic123</code>
-              </button>
-              <button type="button" className="block w-full text-left hover:text-primary" onClick={() => fillDemo("receptionist", "receptionist123")}>
-                Receptionist: <code className="rounded bg-background px-1">receptionist / receptionist123</code>
-              </button>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

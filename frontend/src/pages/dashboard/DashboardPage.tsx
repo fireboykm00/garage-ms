@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, startTransition } from "react"
 import { dashboardService } from "@/services/dashboardService"
 import { stockService } from "@/services/stockService"
 import { partService } from "@/services/partService"
@@ -24,13 +24,6 @@ const statusLabel: Record<string, string> = {
   CANCELLED: "Cancelled",
 }
 
-const statusVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
-  OPEN: "secondary",
-  IN_PROGRESS: "default",
-  COMPLETED: "outline",
-  CANCELLED: "destructive",
-}
-
 export function DashboardPage() {
   useDocumentTitle("Dashboard")
   const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -46,17 +39,16 @@ export function DashboardPage() {
     lowStock: false,
   })
 
-  const loadDashboard = () => {
-    setLoading(true)
-    setHasError(false)
-    setErrors({ stats: false, transactions: false, jobs: false, lowStock: false })
+  const loadIdRef = useRef(0)
 
+  const fetchData = (id: number) => {
     Promise.allSettled([
       dashboardService.getStats(),
       stockService.getTransactions(),
       dashboardService.getRecentJobs(),
       partService.getLowStock(),
     ]).then(([statsRes, txRes, jobsRes, lowRes]) => {
+      if (id !== loadIdRef.current) return
       const newErrors = {
         stats: statsRes.status === "rejected",
         transactions: txRes.status === "rejected",
@@ -79,11 +71,17 @@ export function DashboardPage() {
       } else if (allFailed) {
         toast.error("Failed to load dashboard data")
       }
-    }).finally(() => setLoading(false))
+    }).finally(() => { if (id === loadIdRef.current) setLoading(false) })
   }
 
   useEffect(() => {
-    loadDashboard()
+    const id = ++loadIdRef.current
+    startTransition(() => {
+      setLoading(true)
+      setHasError(false)
+      setErrors({ stats: false, transactions: false, jobs: false, lowStock: false })
+    })
+    fetchData(id)
   }, [])
 
   const inProgressJobs = recentJobs.filter((j) => j.status === "IN_PROGRESS")
@@ -100,7 +98,7 @@ export function DashboardPage() {
   // Full error state
   if (hasError && !loading) {
     return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="space-y-6">
         <Breadcrumbs segments={[{ label: "Dashboard" }]} />
         <div className="flex items-center gap-2">
           <Wrench className="h-6 w-6 text-primary" />
@@ -113,7 +111,7 @@ export function DashboardPage() {
             <p className="text-sm text-muted-foreground mb-4">
               Could not load any dashboard data. Please check your connection and try again.
             </p>
-            <Button onClick={loadDashboard}>
+            <Button onClick={() => { const id = ++loadIdRef.current; setLoading(true); setHasError(false); fetchData(id) }}>
               <RefreshCw className="mr-2 h-4 w-4" /> Retry
             </Button>
           </CardContent>
@@ -123,7 +121,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="space-y-6">
       <Breadcrumbs segments={[{ label: "Dashboard" }]} />
       <div className="flex items-center gap-2">
         <Wrench className="h-6 w-6 text-primary" />
@@ -315,9 +313,14 @@ export function DashboardPage() {
                         {job.customerName}{job.vehicleRegistration ? ` · ${job.vehicleRegistration}` : ""}
                       </p>
                     </div>
-                    <Badge variant={statusVariant[job.status] || "outline"}>
+                    <span className={`text-xs font-medium ${
+                      job.status === "OPEN" ? "text-blue-600" :
+                      job.status === "IN_PROGRESS" ? "text-amber-600" :
+                      job.status === "COMPLETED" ? "text-green-600" :
+                      "text-red-600"
+                    }`}>
                       {statusLabel[job.status] || job.status}
-                    </Badge>
+                    </span>
                   </Link>
                 ))}
               </div>
@@ -345,11 +348,11 @@ export function DashboardPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
-                      <th className="pb-2 font-medium">Part</th>
-                      <th className="pb-2 font-medium">Type</th>
-                      <th className="pb-2 font-medium">Qty</th>
-                      <th className="pb-2 font-medium">By</th>
-                      <th className="pb-2 font-medium">Date</th>
+                      <th className="pb-2 font-medium">PART</th>
+                      <th className="pb-2 font-medium">TYPE</th>
+                      <th className="pb-2 font-medium">QTY</th>
+                      <th className="pb-2 font-medium">BY</th>
+                      <th className="pb-2 font-medium">DATE</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -357,9 +360,11 @@ export function DashboardPage() {
                       <tr key={tx.id} className="border-b last:border-0">
                         <td className="py-2">{tx.partName}</td>
                         <td className="py-2">
-                          <Badge variant={tx.type === "IN" ? "default" : "destructive"}>
+                          <span className={`text-xs font-medium ${
+                            tx.type === "IN" ? "text-green-600" : "text-red-600"
+                          }`}>
                             {tx.type}
-                          </Badge>
+                          </span>
                         </td>
                         <td className="py-2">{tx.quantity}</td>
                         <td className="py-2 text-muted-foreground">{tx.createdByName}</td>

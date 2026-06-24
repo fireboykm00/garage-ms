@@ -4,9 +4,8 @@ import type { StockInReport } from "@/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { FileText, Download, Search, BarChart3 } from "lucide-react"
+import { FileText, Download, Search } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import ExcelJS from "exceljs"
 import { useDocumentTitle } from "@/hooks/useDocumentTitle"
@@ -152,7 +151,8 @@ export function StockInTransactionsPage() {
       const a = document.createElement("a")
       a.href = url; a.download = "stock-in-report.xlsx"; a.click()
       URL.revokeObjectURL(url)
-    } catch {
+    } catch (err) {
+      console.error("Export failed:", err);
       toast.error("Failed to generate report")
     } finally {
       setDownloading(false)
@@ -182,24 +182,6 @@ export function StockInTransactionsPage() {
         </div>
       </div>
 
-      <Card className="bg-primary/5 border-primary/20">
-        <CardContent className="flex items-center gap-4 py-3">
-          <BarChart3 className="h-5 w-5 text-primary" />
-          <span className="text-sm">
-            <strong>Total Items Added:</strong> {overallTotal} units
-          </span>
-          <span className="text-sm text-muted-foreground">|</span>
-          <span className="text-sm">
-            <strong>Transactions:</strong> {filtered.length}
-          </span>
-          {(startDate || endDate) && dateFilterApplied && (
-            <Badge variant="outline" className="text-xs">
-              Filtered: {startDate || "..."} — {endDate || "..."}
-            </Badge>
-          )}
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>Items Added to Stock</CardTitle>
@@ -209,8 +191,6 @@ export function StockInTransactionsPage() {
             <div className="space-y-2">
               {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
             </div>
-          ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No stock in records found.</p>
           ) : (
             <div className="space-y-4">
               <div className="flex flex-wrap items-end gap-3">
@@ -223,7 +203,7 @@ export function StockInTransactionsPage() {
                   <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8" />
                 </div>
                 <Button size="sm" onClick={applyDateFilter}>Apply</Button>
-                {(startDate || endDate) && dateFilterApplied && (
+                {dateFilterApplied && (
                   <Button size="sm" variant="ghost" onClick={clearDateFilter}>Clear</Button>
                 )}
                 <div className="relative ml-auto flex-1 max-w-xs">
@@ -237,38 +217,44 @@ export function StockInTransactionsPage() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground bg-muted/20">
-                      <th className="px-4 py-2 font-medium text-xs">Part Number</th>
-                      <th className="px-4 py-2 font-medium text-xs">Description</th>
-                      <th className="px-4 py-2 font-medium text-xs text-right">Qty Added</th>
-                      <th className="px-4 py-2 font-medium text-xs">Recorded By</th>
-                      <th className="px-4 py-2 font-medium text-xs">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((entry) => (
-                      <tr key={entry.id} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="px-4 py-2 font-mono text-xs">{entry.partNumber}</td>
-                        <td className="px-4 py-2">{entry.partName}</td>
-                        <td className="px-4 py-2 text-right font-medium">{entry.quantity}</td>
-                        <td className="px-4 py-2">{entry.createdByName}</td>
-                        <td className="px-4 py-2 text-xs text-muted-foreground">{formatDate(entry.createdAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {filtered.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No stock in records found.</p>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-muted-foreground">
+                          <th className="pb-2 font-medium">PART NUMBER</th>
+                          <th className="pb-2 font-medium">DESCRIPTION</th>
+                          <th className="pb-2 font-medium text-right">QTY ADDED</th>
+                          <th className="pb-2 font-medium">RECORDED BY</th>
+                          <th className="pb-2 font-medium">DATE</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.map((entry) => (
+                          <tr key={entry.id} className="border-b last:border-0">
+                            <td className="py-2 font-mono text-xs">{entry.partNumber}</td>
+                            <td className="py-2">{entry.partName}</td>
+                            <td className="py-2 text-right font-medium">{entry.quantity}</td>
+                            <td className="py-2">{entry.createdByName}</td>
+                            <td className="py-2 text-xs text-muted-foreground">{formatDate(entry.createdAt)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-              <div className="flex justify-end border-t pt-4">
-                <div className="rounded-lg bg-primary/5 px-6 py-3">
-                  <span className="text-sm font-semibold">
-                    Overall Total: <span className="text-lg">{overallTotal}</span> units
-                  </span>
-                </div>
-              </div>
+                  <div className="flex justify-end border-t pt-4">
+                    <div className="rounded-lg bg-primary/5 px-6 py-3">
+                      <span className="text-sm font-semibold">
+                        Overall Total: <span className="text-lg">{overallTotal}</span> units
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </CardContent>

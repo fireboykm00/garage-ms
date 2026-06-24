@@ -128,7 +128,8 @@ export function RemainingStockReportPage() {
     const a = document.createElement("a")
     a.href = url; a.download = "remaining-stock-report.xlsx"; a.click()
     URL.revokeObjectURL(url)
-    } catch {
+    } catch (err) {
+      console.error("Export failed:", err);
       toast.error("Failed to generate report")
     } finally {
       setDownloading(false)
@@ -147,19 +148,6 @@ export function RemainingStockReportPage() {
           <Download className="mr-1 h-4 w-4" /> {downloading ? "Exporting..." : "Export Report"}
         </Button>
       </div>
-
-      <Card className="bg-primary/5 border-primary/20">
-        <CardContent className="flex items-center gap-4 py-3">
-          <BarChart3 className="h-5 w-5 text-primary" />
-          <span className="text-sm">
-            <strong>Total Parts:</strong> {totalParts}
-          </span>
-          <span className="text-sm text-muted-foreground">|</span>
-          <span className="text-sm">
-            <strong>Total Stock Out:</strong> {totalStockOut.toLocaleString()}
-          </span>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
@@ -220,6 +208,18 @@ export function RemainingStockReportPage() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+      <Card className="bg-primary/5 border-primary/20">
+        <CardContent className="flex items-center gap-4 py-3">
+          <BarChart3 className="h-5 w-5 text-primary" />
+          <span className="text-sm">
+            <strong>Total Parts:</strong> {totalParts}
+          </span>
+          <span className="text-sm text-muted-foreground">|</span>
+          <span className="text-sm">
+            <strong>Total Stock Out:</strong> {totalStockOut.toLocaleString()}
+          </span>
         </CardContent>
       </Card>
     </div>

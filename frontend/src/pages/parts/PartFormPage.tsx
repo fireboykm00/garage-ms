@@ -17,9 +17,10 @@ import { AxiosError } from "axios"
 import { ApiError } from "@/lib/api"
 
 export function PartFormPage() {
-  const { id, stockId } = useParams()
+  const { id, stockId, partId } = useParams<{ id?: string; stockId?: string; partId?: string }>()
+  const resolvedId = id || partId
   const navigate = useNavigate()
-  const isEdit = !!id
+  const isEdit = !!resolvedId
   const isStockLocked = !!stockId && !isEdit
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -58,7 +59,7 @@ export function PartFormPage() {
   useEffect(() => {
     if (isEdit) {
       setLoading(true)
-      partService.getById(Number(id))
+      partService.getById(Number(resolvedId))
         .then((res) => {
           const p = res.data
           setForm({
@@ -76,7 +77,7 @@ export function PartFormPage() {
         .catch(() => toast.error("Failed to load part"))
         .finally(() => setLoading(false))
     }
-  }, [id, isEdit])
+  }, [resolvedId, isEdit])
 
   const lockedStockName = isStockLocked
     ? stocks.find((s) => s.id === Number(stockId))?.name
@@ -89,7 +90,7 @@ export function PartFormPage() {
     setFieldErrors({})
     try {
       if (isEdit) {
-        await partService.update(Number(id), form)
+        await partService.update(Number(resolvedId), form)
         toast.success("Part updated")
       } else {
         await partService.create(form)
@@ -237,12 +238,11 @@ export function PartFormPage() {
                   <SelectValue placeholder="Select a stock" />
                 </SelectTrigger>
                 <SelectContent>
-                  {stocks.length === 0 && (
+                  {stocks.length === 0 ? (
                     <div className="px-2 py-4 text-center text-sm text-muted-foreground">
                       No stocks available. Create one first.
                     </div>
-                  )}
-                  {stocks.map((stock) => (
+                  ) : stocks.map((stock) => (
                     <SelectItem key={stock.id} value={String(stock.id)}>
                       {stock.name}{stock.description ? ` — ${stock.description}` : ""}
                     </SelectItem>

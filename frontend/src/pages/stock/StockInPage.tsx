@@ -92,12 +92,13 @@ export function StockInPage() {
       setForm({ partId: 0, quantity: 1, note: "" })
       // Refresh data (separate try/catch so refresh failures don't override success)
       try {
+        const currentStockId = selectedStock?.id
         const [txRes, partsRes] = await Promise.all([
           stockService.getTransactions(),
-          selectedStock ? stockService.getParts(selectedStock.id) : Promise.resolve(undefined),
+          currentStockId ? stockService.getParts(currentStockId) : Promise.resolve(undefined),
         ])
         setRecentTransactions(txRes.data.filter((t) => t.type === "IN").slice(0, 10))
-        if (partsRes) setParts(partsRes.data)
+        if (partsRes && selectedStock?.id === currentStockId) setParts(partsRes.data)
       } catch {
         // Silent — data refresh failure shouldn't override the successful stock-in message
       }
@@ -192,12 +193,11 @@ export function StockInPage() {
                         <SelectValue placeholder="Select a part" />
                       </SelectTrigger>
                       <SelectContent>
-                        {parts.length === 0 && (
+                        {parts.length === 0 ? (
                           <div className="px-2 py-4 text-center text-sm text-muted-foreground">
                             No parts in this stock
                           </div>
-                        )}
-                        {parts.map((part) => (
+                        ) : parts.map((part) => (
                           <SelectItem key={part.id} value={String(part.id)}>
                             {part.partNumber} - {part.name} (Balance: {part.currentQuantity})
                           </SelectItem>

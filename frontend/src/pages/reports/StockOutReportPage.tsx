@@ -4,9 +4,8 @@ import type { AggregatedStockOutReport } from "@/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { FileText, Download, Search, BarChart3 } from "lucide-react"
+import { FileText, Download, Search, CalendarDays } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import ExcelJS from "exceljs"
 import { useDocumentTitle } from "@/hooks/useDocumentTitle"
@@ -90,7 +89,7 @@ export function StockOutReportPage() {
       ws.getCell(1, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1a365d" } }
     }
 
-    const headers = ["DATE", "PART NUMBER", "DESCRIPTION", "QTY REMOVED"]
+    const headers = ["DATE", "PART NUMBER", "DESCRIPTION", "QTY CONSUMED"]
     const headerRow = ws.addRow(headers)
     for (let c = 1; c <= headers.length; c++) {
       const cell = headerRow.getCell(c)
@@ -165,7 +164,8 @@ export function StockOutReportPage() {
     const a = document.createElement("a")
     a.href = url; a.download = "stock-out-report-aggregated.xlsx"; a.click()
     URL.revokeObjectURL(url)
-    } catch {
+    } catch (err) {
+      console.error("Export failed:", err);
       toast.error("Failed to generate report")
     } finally {
       setDownloading(false)
@@ -195,36 +195,15 @@ export function StockOutReportPage() {
         </div>
       </div>
 
-      {/* Summary bar */}
-      <Card className="bg-primary/5 border-primary/20">
-        <CardContent className="flex items-center gap-4 py-3">
-          <BarChart3 className="h-5 w-5 text-primary" />
-          <span className="text-sm">
-            <strong>Overall Total:</strong> {overallTotal} units
-          </span>
-          <span className="text-sm text-muted-foreground">|</span>
-          <span className="text-sm">
-            <strong>Days:</strong> {filtered.length}
-          </span>
-          {(startDate || endDate) && dateFilterApplied && (
-            <Badge variant="outline" className="text-xs">
-              Filtered: {startDate || "..."} — {endDate || "..."}
-            </Badge>
-          )}
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
-          <CardTitle>Items Removed from Stock</CardTitle>
+          <CardTitle>Items Consumed from Stock</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="space-y-2">
               {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
             </div>
-          ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No stock out records found.</p>
           ) : (
             <div className="space-y-4">
               {/* Filters */}
@@ -238,7 +217,7 @@ export function StockOutReportPage() {
                   <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8" />
                 </div>
                 <Button size="sm" onClick={applyDateFilter}>Apply</Button>
-                {(startDate || endDate) && dateFilterApplied && (
+                {dateFilterApplied && (
                   <Button size="sm" variant="ghost" onClick={clearDateFilter}>Clear</Button>
                 )}
                 <div className="relative ml-auto flex-1 max-w-xs">
@@ -252,54 +231,61 @@ export function StockOutReportPage() {
                 </div>
               </div>
 
-              {/* Grouped by date */}
-              <div className="space-y-4">
-                {filtered.map((day) => {
-                  return (
-                    <div key={day.date} className="rounded-lg border">
-                      {/* Date header */}
-                      <div className="flex w-full items-center justify-between bg-muted/30 px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">{formatDate(day.date)}</span>
-                          <Badge variant="secondary" className="ml-2 text-xs">
-                            {day.entries.length} part{day.entries.length !== 1 ? "s" : ""}
-                          </Badge>
+              {filtered.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No stock out records found.</p>
+              ) : (
+                <>
+                  {/* Grouped by date */}
+                  <div className="space-y-4">
+                    {filtered.map((day) => {
+                      return (
+                        <div key={day.date} className="rounded-lg border">
+                          {/* Date header */}
+                      <div className="flex w-full items-center justify-between bg-muted/30 px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <CalendarDays className="h-5 w-5 text-muted-foreground shrink-0" />
+                          <div className="font-semibold">{formatDate(day.date)}</div>
                         </div>
-                        <span className="font-medium text-sm">Total: {day.dailyTotal}</span>
+                        <div className="text-right">
+                          <div className="text-[11px] text-muted-foreground tracking-wider uppercase">Total consumed</div>
+                          <div className="text-xl font-bold tabular-nums">{day.dailyTotal}</div>
+                        </div>
                       </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b text-left text-muted-foreground bg-muted/20">
-                              <th className="px-4 py-2 font-medium text-xs">Part Number</th>
-                              <th className="px-4 py-2 font-medium text-xs">Description</th>
-                              <th className="px-4 py-2 font-medium text-xs text-right">Qty Removed</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {day.entries.map((entry) => (
-                              <tr key={`${day.date}-${entry.partNumber}`} className="border-b last:border-0 hover:bg-muted/30">
-                                <td className="px-4 py-2 font-mono text-xs">{entry.partNumber}</td>
-                                <td className="px-4 py-2">{entry.partName}</td>
-                                <td className="px-4 py-2 text-right font-medium">{entry.totalQuantity}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+                          <div className="overflow-x-auto px-4">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b text-left text-muted-foreground">
+                                  <th className="pb-2 font-medium">PART NUMBER</th>
+                                  <th className="pb-2 font-medium">DESCRIPTION</th>
+                                  <th className="pb-2 font-medium text-right">QTY CONSUMED</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {day.entries.map((entry) => (
+                                  <tr key={`${day.date}-${entry.partNumber}`} className="border-b last:border-0">
+                                    <td className="py-2 font-mono text-xs">{entry.partNumber}</td>
+                                    <td className="py-2">{entry.partName}</td>
+                                    <td className="py-2 text-right font-medium">{entry.totalQuantity}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
 
-              {/* Overall total */}
-              <div className="flex justify-end border-t pt-4">
-                <div className="rounded-lg bg-primary/5 px-6 py-3">
-                  <span className="text-sm font-semibold">
-                    Overall Total: <span className="text-lg">{overallTotal}</span> units
-                  </span>
-                </div>
-              </div>
+                  {/* Overall total */}
+                  <div className="flex justify-end border-t pt-4">
+                    <div className="rounded-lg bg-primary/5 px-6 py-3">
+                      <span className="text-sm font-semibold">
+                        Overall Total: <span className="text-lg">{overallTotal}</span> units
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </CardContent>

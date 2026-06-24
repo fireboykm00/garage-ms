@@ -6,14 +6,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -39,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/hooks/useAuth"
 import { Plus, Trash2, Users, Search, Edit, Clock, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import type { User, UserRole } from "@/types"
@@ -397,87 +389,89 @@ export function AdminUsersPage() {
           <CardHeader>
             <CardTitle>System Users</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-[120px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">No users found</TableCell>
-                  </TableRow>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.username}</TableCell>
-                      <TableCell>{user.fullName}</TableCell>
-                      <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={roleBadgeVariant(user.role)}>{roleLabel(user.role)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(user)} disabled={user.id === currentUser?.id}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog
-                            open={deleteDialogUser?.id === user.id}
-                            onOpenChange={(open) => {
-                              if (!open) { setDeleteDialogUser(null); setDeleteConfirmText("") }
-                            }}
-                          >
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="text-destructive" disabled={user.id === currentUser?.id}
-                                onClick={() => { setDeleteDialogUser(user); setDeleteConfirmText("") }}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete User</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This action cannot be undone. To confirm, type <strong>{user.username}</strong> below.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <div className="py-2">
-                                <Input
-                                  placeholder={`Type "${user.username}" to confirm`}
-                                  value={deleteConfirmText}
-                                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                                />
-                              </div>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel onClick={() => { setDeleteDialogUser(null); setDeleteConfirmText("") }}>
-                                  Cancel
-                                </AlertDialogCancel>
-                                <AlertDialogAction
-                                  disabled={deleteConfirmText !== user.username || savingDelete}
-                                  onClick={handleDelete}
-                                  className="bg-destructive"
-                                >
-                                  {savingDelete ? "Deleting..." : "Delete"}
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 font-medium">USERNAME</th>
+                    <th className="pb-2 font-medium">NAME</th>
+                    <th className="pb-2 font-medium">EMAIL</th>
+                    <th className="pb-2 font-medium">ROLE</th>
+                    <th className="pb-2 font-medium">CREATED</th>
+                    <th className="pb-2 font-medium">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No users found</td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((user) => (
+                      <tr key={user.id} className="border-b last:border-0">
+                        <td className="py-2 font-medium">{user.username}</td>
+                        <td className="py-2">{user.fullName}</td>
+                        <td className="py-2 text-muted-foreground">{user.email}</td>
+                        <td className="py-2">
+                          <Badge variant={roleBadgeVariant(user.role)}>{roleLabel(user.role)}</Badge>
+                        </td>
+                        <td className="py-2 text-muted-foreground">
+                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "-"}
+                        </td>
+                        <td className="py-2">
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(user)} disabled={user.id === currentUser?.id}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <AlertDialog
+                              open={deleteDialogUser?.id === user.id}
+                              onOpenChange={(open) => {
+                                if (!open) { setDeleteDialogUser(null); setDeleteConfirmText("") }
+                              }}
+                            >
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="text-destructive" disabled={user.id === currentUser?.id}
+                                  onClick={() => { setDeleteDialogUser(user); setDeleteConfirmText("") }}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This action cannot be undone. To confirm, type <strong>{user.username}</strong> below.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <div className="py-2">
+                                  <Input
+                                    placeholder={`Type "${user.username}" to confirm`}
+                                    value={deleteConfirmText}
+                                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                  />
+                                </div>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel onClick={() => { setDeleteDialogUser(null); setDeleteConfirmText("") }}>
+                                    Cancel
+                                  </AlertDialogCancel>
+                                  <AlertDialogAction
+                                    disabled={deleteConfirmText !== user.username || savingDelete}
+                                    onClick={handleDelete}
+                                    className="bg-destructive"
+                                  >
+                                    {savingDelete ? "Deleting..." : "Delete"}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
       )}

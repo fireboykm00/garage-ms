@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useState, useEffect, type ReactNode } from "react"
 import { authService } from "@/services/authService"
 import type { User, LoginRequest } from "@/types"
 import { toast } from "sonner"
@@ -17,7 +18,7 @@ interface AuthContextType {
   setUser: (user: User) => void
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -45,7 +46,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("token", token)
     localStorage.setItem("user", JSON.stringify(userData))
     setToken(token)
-    setUser(userData as unknown as User)
+    setUser({
+      id: userData.id,
+      username: userData.username,
+      email: userData.email,
+      fullName: userData.fullName,
+      role: userData.role,
+      enabled: true,
+      createdAt: new Date().toISOString(),
+    })
     toast.success(`Welcome back, ${userData.fullName}!`)
   }
 
@@ -70,12 +79,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
-  }
-  return context
 }

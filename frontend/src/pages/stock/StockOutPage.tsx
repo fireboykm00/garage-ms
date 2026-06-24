@@ -52,6 +52,12 @@ export function StockOutPage() {
     setSuggestions(parts.slice(0, 20))
   }, [parts])
 
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
   const handleStockChange = async (stockId: string) => {
     const stock = stocks.find((s) => s.id === Number(stockId)) || null
     setSelectedStock(stock)
@@ -117,8 +123,9 @@ export function StockOutPage() {
       // Refresh data (separate try/catch so refresh failures don't override success)
       if (selectedStock) {
         try {
-          const partsRes = await stockService.getParts(selectedStock.id)
-          setParts(partsRes.data)
+          const currentStockId = selectedStock.id
+          const partsRes = await stockService.getParts(currentStockId)
+          if (selectedStock.id === currentStockId) setParts(partsRes.data)
         } catch {
           // Silent — refresh failure shouldn't override success
         }

@@ -60,6 +60,10 @@ api.interceptors.response.use(
       const status = error.response.status;
 
       if (status === 401) {
+        const requestUrl = error.config?.url || ""
+        if (requestUrl.includes("/auth/login")) {
+          return Promise.reject(error)
+        }
         showDebouncedToast("Session expired. Please log in again.");
         localStorage.removeItem("token");
         localStorage.removeItem("user");

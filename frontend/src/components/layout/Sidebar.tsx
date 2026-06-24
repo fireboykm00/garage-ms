@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/hooks/useAuth"
 import { partService } from "@/services/partService"
 import {
   LayoutDashboard, Package, ArrowDownToLine,
@@ -44,7 +44,7 @@ export function Sidebar() {
     if (isAdmin || isStorekeeper || isMechanic) {
       partService.getLowStock()
         .then((res) => setLowStockCount(res.data.length))
-        .catch(() => {})
+        .catch(() => console.error("Failed to load low stock count"))
     }
   }, [location.pathname, isAdmin, isStorekeeper, isMechanic])
 

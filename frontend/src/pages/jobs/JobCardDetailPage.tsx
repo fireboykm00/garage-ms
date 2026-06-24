@@ -1,11 +1,10 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useNavigate, useParams, Link } from "react-router-dom"
 import { jobCardService } from "@/services/jobCardService"
 import { partService } from "@/services/partService"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/hooks/useAuth"
 import type { JobCard, JobCardPart, JobCardStatus, Part } from "@/types"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -16,22 +15,14 @@ import { Skeleton } from "@/components/ui/skeleton"
 import {
   ArrowLeft, Plus, FileDown, XCircle,
   Settings, Wrench, Package, Printer, Clock, User, Truck,
-  ExternalLink, Trash2, RotateCcw
+  ExternalLink, Trash2
 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { generateJobCardPDF } from "@/lib/generateJobCardPDF"
 import { useDocumentTitle } from "@/hooks/useDocumentTitle"
 import { normalizeError } from "@/lib/errors"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
-
-const statusVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
-  OPEN: "secondary",
-  IN_PROGRESS: "default",
-  COMPLETED: "outline",
-  CANCELLED: "destructive",
-}
 
 const statusLabel: Record<string, string> = {
   OPEN: "Open",
@@ -60,13 +51,14 @@ export function JobCardDetailPage() {
   const [loading, setLoading] = useState(true)
   const [previousJobs, setPreviousJobs] = useState<JobCard[]>([])
   const [removingPartId, setRemovingPartId] = useState<number | null>(null)
-  const [replacingPartId, setReplacingPartId] = useState<number | null>(null)
-  const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
-  const [replacePartSearch, setReplacePartSearch] = useState("")
-  const [replaceSelectedPart, setReplaceSelectedPart] = useState<Part | null>(null)
-  const [replaceQuantity, setReplaceQuantity] = useState(1)
-  const [replacing, setReplacing] = useState(false)
-  const [allParts, setAllParts] = useState<Part[]>([])
+
+  // Add Part form state
+  const [showAddPartForm, setShowAddPartForm] = useState(false)
+  const [addPartParts, setAddPartParts] = useState<Part[]>([])
+  const [addPartPartsLoading, setAddPartPartsLoading] = useState(false)
+  const [addPartSearch, setAddPartSearch] = useState("")
+  const [addPartSelectedId, setAddPartSelectedId] = useState("")
+  const [addPartQuantity, setAddPartQuantity] = useState(1)
 
   const canEdit = isAdmin || isStorekeeper || isMechanic
   const isActive = job?.status === "OPEN" || job?.status === "IN_PROGRESS"
@@ -95,20 +87,12 @@ export function JobCardDetailPage() {
               )
             ).slice(0, 5)
             setPreviousJobs(prev)
-          }).catch(() => {})
+          }).catch(() => console.error("Failed to load previous jobs"))
         }
       })
       .catch(() => toast.error("Failed to load job card"))
       .finally(() => setLoading(false))
   }, [id])
-
-  useEffect(() => {
-    if (replaceDialogOpen) {
-      partService.getAll()
-        .then((res) => setAllParts(res.data))
-        .catch(() => toast.error("Failed to load parts"))
-    }
-  }, [replaceDialogOpen])
 
   const updateStatus = async (status: JobCardStatus) => {
     try {
@@ -231,35 +215,60 @@ export function JobCardDetailPage() {
   }
 
   const handleRemovePart = async (jobCardPartId: number) => {
+    if (!id) return
     setRemovingPartId(jobCardPartId)
     try {
-      await jobCardService.removePart(jobId, jobCardPartId)
+      await jobCardService.removePart(Number(id), jobCardPartId)
       toast.success("Part removed from job card and returned to stock")
       setParts((prev) => prev.filter((p) => p.id !== jobCardPartId))
     } catch (err: unknown) {
-      toast.error(normalizeError(err).message)
+      console.error("Remove part error:", err)
+      if (err instanceof Error) {
+        toast.error(err.message)
+      } else {
+        toast.error(normalizeError(err).message)
+      }
     } finally {
       setRemovingPartId(null)
     }
   }
 
-  const handleReplacePart = async (jobCardPartId: number) => {
-    if (!replaceSelectedPart) { toast.error("Select a part"); return }
-    setReplacing(true)
+  const loadAddPartParts = useCallback(async () => {
+    setAddPartPartsLoading(true)
     try {
-      const res = await jobCardService.replacePart(jobId, jobCardPartId, {
-        newPartId: replaceSelectedPart.id,
-        quantity: replaceQuantity,
-      })
-      toast.success("Part replaced")
-      setParts((prev) => prev.map((p) => (p.id === jobCardPartId ? res.data : p)))
-      setReplaceDialogOpen(false)
-      setReplaceSelectedPart(null)
-      setReplaceQuantity(1)
-    } catch (err: unknown) {
-      toast.error(normalizeError(err).message)
+      const res = await partService.getAll()
+      setAddPartParts(res.data)
+    } catch {
+      toast.error("Failed to load parts")
     } finally {
-      setReplacing(false)
+      setAddPartPartsLoading(false)
+    }
+  }, [])
+
+  const addPartFiltered = addPartParts.filter((p) => {
+    if (!addPartSearch.trim()) return true
+    const q = addPartSearch.toLowerCase()
+    return p.partNumber.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
+  })
+
+  const addPartSelected = addPartParts.find((p) => p.id === Number(addPartSelectedId))
+  const addPartExceedsStock = addPartSelected && addPartQuantity > addPartSelected.currentQuantity
+
+  const handleAddPart = async () => {
+    if (!id || !addPartSelectedId || !addPartQuantity || addPartExceedsStock) return
+    try {
+      const res = await jobCardService.addPart(Number(id), { partId: Number(addPartSelectedId), quantity: addPartQuantity })
+      const p = res.data
+      setParts((prev) => {
+        const existing = prev.find((ep) => ep.partId === p.partId)
+        if (existing) return prev.map((ep) => (ep.partId === p.partId ? p : ep))
+        return [...prev, p]
+      })
+      toast.success(`${p.quantity}x ${p.partName} added — stock deducted automatically`)
+      setAddPartSelectedId(""); setAddPartQuantity(1); setAddPartSearch(""); setShowAddPartForm(false)
+    } catch (err) {
+      const { message } = normalizeError(err)
+      toast.error(message)
     }
   }
 
@@ -300,9 +309,14 @@ export function JobCardDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <span className="font-mono font-bold text-lg">{job.jobNumber}</span>
-          <Badge variant={statusVariant[job.status]} className="text-sm px-3 py-1">
+          <span className={`text-sm font-semibold ${
+            job.status === "OPEN" ? "text-blue-600" :
+            job.status === "IN_PROGRESS" ? "text-amber-600" :
+            job.status === "COMPLETED" ? "text-green-600" :
+            "text-red-600"
+          }`}>
             {statusLabel[job.status]}
-          </Badge>
+          </span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {canEdit && job.status === "OPEN" && (
@@ -412,7 +426,7 @@ export function JobCardDetailPage() {
               <EditableField
                 value={job.technicalReport || ""}
                 onSave={handleUpdateTechnicalReport}
-                editable={canEdit}
+                editable={canEdit && isActive}
                 placeholder="No report yet"
               />
             </CardContent>
@@ -426,7 +440,7 @@ export function JobCardDetailPage() {
               <EditableField
                 value={job.workCompleted || ""}
                 onSave={handleUpdateWorkCompleted}
-                editable={canEdit}
+                editable={canEdit && isActive}
                 placeholder="Not yet completed"
               />
             </CardContent>
@@ -439,91 +453,124 @@ export function JobCardDetailPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Parts Used</CardTitle>
               {canEdit && isActive && (
-                <AddPartButton
-                  jobId={job.id}
-                  onPartAdded={(p) => {
-                    setParts((prev) => {
-                      const existing = prev.find((ep) => ep.partId === p.partId)
-                      if (existing) {
-                        return prev.map((ep) => (ep.partId === p.partId ? p : ep))
-                      }
-                      return [...prev, p]
-                    })
-                    toast.success(`${p.quantity}x ${p.partName} added — stock deducted automatically`)
-                  }}
-                />
+                <Button variant="outline" size="sm" onClick={() => { setShowAddPartForm(true); loadAddPartParts() }}>
+                  <Plus className="mr-1 h-3 w-3" /> Add Part
+                </Button>
               )}
             </CardHeader>
             <CardContent>
-              {parts.length === 0 ? (
+              {parts.length === 0 && !showAddPartForm ? (
                 <p className="text-sm text-muted-foreground">No parts used yet.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-muted-foreground">
-                        <th className="pb-2 font-medium">Part Number</th>
-                        <th className="pb-2 font-medium">Description</th>
-                        <th className="pb-2 font-medium">Qty</th>
-                        <th className="pb-2 font-medium">Unit</th>
-                        <th className="pb-2 font-medium">Est. Cost</th>
-                        {canEdit && isActive && (
-                          <th className="pb-2 font-medium text-right">Actions</th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {parts.map((p) => (
-                        <tr key={p.id} className="border-b last:border-0">
-                          <td className="py-2 font-mono text-xs">{p.partNumber}</td>
-                          <td className="py-2">{p.partName}</td>
-                          <td className="py-2">{p.quantity}</td>
-                          <td className="py-2">{p.unit || "-"}</td>
-                          <td className="py-2 text-muted-foreground">—</td>
-                          {canEdit && isActive && (
-                            <td className="px-4 py-2 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={() => {
-                                    setReplacingPartId(p.id)
-                                    setReplaceDialogOpen(true)
-                                  }}
-                                  title="Replace part"
-                                >
-                                  <RotateCcw className="h-3.5 w-3.5" />
-                                </Button>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" title="Remove part">
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Remove part?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        {p.quantity}x {p.partName} ({p.partNumber}) will be returned to stock.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction onClick={() => handleRemovePart(p.id)} disabled={removingPartId === p.id}>
-                                        {removingPartId === p.id ? "Removing..." : "Remove"}
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  {parts.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-muted-foreground">
+                            <th className="pb-2 font-medium">PART NUMBER</th>
+                            <th className="pb-2 font-medium">DESCRIPTION</th>
+                            <th className="pb-2 font-medium">QTY</th>
+                            <th className="pb-2 font-medium">UNIT</th>
+                            <th className="pb-2 font-medium">EST. COST</th>
+                            {canEdit && isActive && (
+                              <th className="pb-2 font-medium text-right">ACTIONS</th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parts.map((p) => (
+                            <tr key={p.id} className="border-b last:border-0">
+                              <td className="py-2 font-mono text-xs">{p.partNumber}</td>
+                              <td className="py-2">{p.partName}</td>
+                              <td className="py-2">{p.quantity}</td>
+                              <td className="py-2">{p.unit || "-"}</td>
+                              <td className="py-2 text-muted-foreground">—</td>
+                              {canEdit && isActive && (
+                                <td className="px-4 py-2 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" title="Remove part">
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Remove part?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            {p.quantity}x {p.partName} ({p.partNumber}) will be returned to stock.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleRemovePart(p.id)} disabled={removingPartId === p.id}>
+                                            {removingPartId === p.id ? "Removing..." : "Remove"}
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Inline Add Part form */}
+                  {showAddPartForm && (
+                    <div className="mt-4 space-y-3 rounded-lg border p-4">
+                      <div className="space-y-2">
+                        <Label>Search Part</Label>
+                        <Input placeholder="Type part number or name..." value={addPartSearch} onChange={(e) => setAddPartSearch(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Select Part</Label>
+                        <Select value={addPartSelectedId} onValueChange={setAddPartSelectedId} disabled={addPartPartsLoading}>
+                          <SelectTrigger>
+                            <SelectValue placeholder={addPartPartsLoading ? "Loading parts..." : "Choose a part"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {addPartPartsLoading ? (
+                              <div className="px-2 py-4 text-center text-sm text-muted-foreground">Loading parts...</div>
+                            ) : addPartFiltered.length === 0 ? (
+                              <div className="px-2 py-4 text-center text-sm text-muted-foreground">No parts found</div>
+                            ) : (
+                              addPartFiltered.map((p) => (
+                                <SelectItem key={p.id} value={String(p.id)}>
+                                  {p.partNumber} — {p.name} ({p.currentQuantity} {p.unit})
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {addPartSelected && (
+                        <p className="text-xs text-muted-foreground">
+                          Balance: <strong>{addPartSelected.currentQuantity}</strong> {addPartSelected.unit}
+                        </p>
+                      )}
+                      {addPartExceedsStock && (
+                        <p className="text-xs text-destructive">Not enough stock! Available: {addPartSelected?.currentQuantity}</p>
+                      )}
+                      <div className="space-y-2">
+                        <Label>Quantity</Label>
+                        <Input type="number" min="1" value={addPartQuantity} onChange={(e) => setAddPartQuantity(parseInt(e.target.value) || 1)} />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={!addPartSelectedId || !addPartQuantity || !!addPartExceedsStock} onClick={handleAddPart}>
+                          Add to Job Card
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => { setShowAddPartForm(false); setAddPartSelectedId(""); setAddPartQuantity(1); setAddPartSearch("") }}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
@@ -591,63 +638,6 @@ export function JobCardDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={replaceDialogOpen} onOpenChange={(open) => { setReplaceDialogOpen(open); if (!open) { setReplaceSelectedPart(null); setReplaceQuantity(1); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Replace Part</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Search Part</Label>
-              <Input
-                placeholder="Search parts..."
-                value={replacePartSearch}
-                onChange={(e) => setReplacePartSearch(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Select
-                value={replaceSelectedPart ? String(replaceSelectedPart.id) : ""}
-                onValueChange={(v) => setReplaceSelectedPart(allParts.find((pt) => pt.id === Number(v)) || null)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a part" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allParts
-                    .filter((pt) => !replacePartSearch || pt.partNumber.toLowerCase().includes(replacePartSearch.toLowerCase()) || pt.name.toLowerCase().includes(replacePartSearch.toLowerCase()))
-                    .map((pt) => (
-                      <SelectItem key={pt.id} value={String(pt.id)}>
-                        {pt.partNumber} — {pt.name} ({pt.currentQuantity} {pt.unit})
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {replaceSelectedPart && (
-              <div className="space-y-2">
-                <Label>Quantity</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={replaceSelectedPart.currentQuantity}
-                  value={replaceQuantity}
-                  onChange={(e) => setReplaceQuantity(parseInt(e.target.value) || 1)}
-                />
-                {replaceQuantity > replaceSelectedPart.currentQuantity && (
-                  <p className="text-xs text-destructive">Insufficient stock! Available: {replaceSelectedPart.currentQuantity}</p>
-                )}
-              </div>
-            )}
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setReplaceDialogOpen(false)}>Cancel</Button>
-              <Button onClick={() => replacingPartId !== null && handleReplacePart(replacingPartId)} disabled={!replaceSelectedPart || replacing || replaceQuantity > (replaceSelectedPart?.currentQuantity || 0)}>
-                {replacing ? "Replacing..." : "Replace"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
@@ -684,100 +674,6 @@ function EditableField({ value, onSave, editable, placeholder }: {
         <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
           Cancel
         </Button>
-      </div>
-    </div>
-  )
-}
-
-function AddPartButton({ jobId, onPartAdded }: { jobId: number; onPartAdded: (p: JobCardPart) => void }) {
-  const [open, setOpen] = useState(false)
-  const [parts, setParts] = useState<Part[]>([])
-  const [partsLoading, setPartsLoading] = useState(false)
-  const [selectedPartId, setSelectedPartId] = useState("")
-  const [quantity, setQuantity] = useState(1)
-  const [search, setSearch] = useState("")
-
-  useEffect(() => {
-    if (open) {
-      setPartsLoading(true)
-      partService.getAll()
-        .then((res) => setParts(res.data))
-        .catch(() => toast.error("Failed to load parts"))
-        .finally(() => setPartsLoading(false))
-    }
-  }, [open])
-
-  const filtered = parts.filter((p) => {
-    if (!search.trim()) return true
-    const q = search.toLowerCase()
-    return p.partNumber.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
-  })
-
-  const selected = parts.find((p) => p.id === Number(selectedPartId))
-  const exceedsStock = selected && quantity > selected.currentQuantity
-
-  if (!open) {
-    return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Plus className="mr-1 h-3 w-3" /> Add Part
-      </Button>
-    )
-  }
-
-  return (
-    <div className="space-y-3 rounded-lg border p-4">
-      <div className="space-y-2">
-        <Label>Search Part</Label>
-        <Input placeholder="Type part number or name..." value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
-      <div className="space-y-2">
-        <Label>Select Part</Label>
-        <Select value={selectedPartId} onValueChange={setSelectedPartId} disabled={partsLoading}>
-          <SelectTrigger>
-            <SelectValue placeholder={partsLoading ? "Loading parts..." : "Choose a part"} />
-          </SelectTrigger>
-          <SelectContent>
-            {partsLoading ? (
-              <div className="px-2 py-4 text-center text-sm text-muted-foreground">Loading parts...</div>
-            ) : filtered.length === 0 ? (
-              <div className="px-2 py-4 text-center text-sm text-muted-foreground">No parts found</div>
-            ) : (
-              filtered.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>
-                  {p.partNumber} — {p.name} ({p.currentQuantity} {p.unit})
-                </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-      {selected && (
-        <p className="text-xs text-muted-foreground">
-          Balance: <strong>{selected.currentQuantity}</strong> {selected.unit}
-        </p>
-      )}
-      {exceedsStock && (
-        <p className="text-xs text-destructive">Not enough stock! Available: {selected?.currentQuantity}</p>
-      )}
-      <div className="space-y-2">
-        <Label>Quantity</Label>
-        <Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(parseInt(e.target.value) || 1)} />
-      </div>
-      <div className="flex gap-2">
-        <Button size="sm" disabled={!selectedPartId || !quantity || !!exceedsStock}
-          onClick={async () => {
-            try {
-              const res = await jobCardService.addPart(jobId, { partId: Number(selectedPartId), quantity })
-              onPartAdded(res.data)
-              setSelectedPartId(""); setQuantity(1); setSearch(""); setOpen(false)
-            } catch (err) {
-              const { message } = normalizeError(err)
-              toast.error(message)
-            }
-          }}>
-          Add to Job Card
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
       </div>
     </div>
   )

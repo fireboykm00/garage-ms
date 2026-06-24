@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/hooks/useAuth"
 import { stockService } from "@/services/stockService"
 import type { Stock } from "@/types"
 import { Button } from "@/components/ui/button"
