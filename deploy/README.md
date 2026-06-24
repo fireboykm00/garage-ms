@@ -126,9 +126,9 @@
    | `VITE_API_URL` | `https://garage-api.onrender.com/api` |
 
 6. Click **"Deploy"**
-7. Vercel automatically detects this is a Vite SPA and sets up the route rewrite
-   (`/*` → `/index.html`) for client-side routing. Verify this in your Vercel project
-   Dashboard → **Settings** → **Rewrites** — it should have a catch-all rewrite.
+7. Vercel will use the `vercel.json` in the `frontend/` directory, which rewrites
+   all routes to `/index.html` for client-side routing.
+   (This is required for SPAs — direct URL access and page refreshes work correctly.)
 8. Note your frontend URL: `https://garage-inventory.vercel.app`
 
 9. **Go back to Render** and update `APP_FRONTEND_URL` to `https://garage-inventory.vercel.app`
